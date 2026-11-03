@@ -1,0 +1,46 @@
+Claude
+MacBook Air de Damian, Conectado
+
+
+
+
+
+.gitignore · GITIGNORE
+# Sistema operativo
+.DS_Store
+Thumbs.db
+desktop.ini
+ 
+# Editores / IDEs
+.vscode/
+.idea/
+*.swp
+ 
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+*.egg-info/
+dist/
+build/
+ 
+# Node
+node_modules/
+npm-debug.log*
+ 
+# Variables de entorno y secretos
+.env
+.env.*
+*.key
+*.pem
+ 
+# Logs y temporales
+*.log
+*.tmp
+tmp/
+.cache/
+ 
+Claude terminó la respuesta
