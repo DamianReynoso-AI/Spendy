@@ -1,46 +1,41 @@
-Claude
-MacBook Air de Damian, Conectado
-
-
-
-
-
-.gitignore · GITIGNORE
 # Sistema operativo
 .DS_Store
 Thumbs.db
 desktop.ini
- 
+
 # Editores / IDEs
 .vscode/
 .idea/
+*.iml
 *.swp
- 
-# Python
-__pycache__/
-*.py[cod]
-.venv/
-venv/
-env/
-.ipynb_checkpoints/
-*.egg-info/
-dist/
+
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
 build/
- 
-# Node
-node_modules/
-npm-debug.log*
- 
+coverage/
+pubspec.lock
+
+# Android / iOS generados
+**/android/local.properties
+**/android/.gradle/
+**/ios/Pods/
+**/ios/Flutter/Generated.xcconfig
+
 # Variables de entorno y secretos
 .env
 .env.*
 *.key
 *.pem
- 
+*.jks
+*.keystore
+
 # Logs y temporales
 *.log
 *.tmp
 tmp/
 .cache/
- 
-Claude terminó la respuesta
