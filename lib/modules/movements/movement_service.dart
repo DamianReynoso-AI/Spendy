@@ -1,5 +1,5 @@
-/// M-02 · Servicio de movimientos: validar, guardar y listar
-/// (RF-01 a RF-05, RF-07, RF-11).
+/// M-02 · Servicio de movimientos: validar, guardar, listar, editar,
+/// eliminar y calcular el balance del mes (RF-01 a RF-05, RF-07 a RF-11).
 ///
 /// Es lo único que la interfaz (M-01) usa para movimientos; las pantallas
 /// nunca importan `lib/data/` (RNF-30).
@@ -13,8 +13,10 @@ import '../../core/validators.dart';
 import '../../data/models/movement.dart';
 import '../../data/repositories/movement_repository.dart';
 import '../categories/category_catalog.dart';
+import 'balance_calculator.dart';
 
 export '../../config/categories.dart' show MovementType;
+export 'balance_calculator.dart' show CalendarMonth, MonthlyBalance;
 
 /// Método de pago de un egreso (RF-01). `value` se guarda en la base.
 enum PaymentMethod {
@@ -61,6 +63,13 @@ class MovementMessages {
       'Los ingresos no llevan método de pago. Deja este campo vacío.';
   static const String incomeNoDescription =
       'Los ingresos no llevan descripción. Usa la nota si lo necesitas.';
+  static const String notFound =
+      'Este movimiento ya no existe. Regresa a la lista para ver tus '
+      'movimientos actuales.';
+  static const String deleteFailed =
+      'No se pudo eliminar el movimiento por un problema con el '
+      'almacenamiento del teléfono. El movimiento sigue guardado; '
+      'intenta de nuevo.';
 }
 
 /// Lo que la persona capturó en el formulario, tal cual.
@@ -91,6 +100,7 @@ class MovementItem {
     required this.type,
     required this.amountCents,
     required this.date,
+    required this.categoryId,
     required this.categoryName,
     this.paymentMethod,
     this.description,
@@ -101,6 +111,7 @@ class MovementItem {
   final MovementType type;
   final int amountCents;
   final DateTime date;
+  final int categoryId;
   final String categoryName;
   final PaymentMethod? paymentMethod;
   final String? description;
@@ -115,17 +126,19 @@ class MovementItem {
   String get formattedDate => formatDate(date);
 }
 
-/// Validación y guardado de movimientos.
+/// Validación, guardado, edición, borrado y balance de movimientos.
 class MovementService {
   MovementService({
     required MovementRepository repository,
     required CategoryCatalog catalog,
     required ErrorLogger logger,
     DateTime Function()? clock,
+    BalanceCalculator calculator = const BalanceCalculator(),
   })  : _repository = repository,
         _catalog = catalog,
         _logger = logger,
-        _clock = clock ?? DateTime.now;
+        _clock = clock ?? DateTime.now,
+        _calculator = calculator;
 
   static const String module = 'M-02';
 
@@ -133,6 +146,11 @@ class MovementService {
   final CategoryCatalog _catalog;
   final ErrorLogger _logger;
   final DateTime Function() _clock;
+  final BalanceCalculator _calculator;
+
+  /// Bajas en curso por id: un segundo toque sobre el mismo id recibe el
+  /// mismo resultado en lugar de borrar otra vez (CA-024).
+  final Map<int, Future<Result<void>>> _pendingDeletes = {};
 
   /// Valida los campos sin tocar la base. Devuelve los errores por campo
   /// (vacío si todo está bien). No revisa el tipo de la categoría; eso lo
@@ -254,18 +272,92 @@ class MovementService {
     }
   }
 
+  /// El movimiento [id] con sus datos actuales (para el detalle y para
+  /// prellenar la edición). Falla con [MovementMessages.notFound] si ya no
+  /// existe.
+  Future<Result<MovementItem>> findById(int id) async {
+    try {
+      final movement = await _repository.findById(id);
+      if (movement == null) return const Failure(_notFoundError);
+      return Success(_toItem(movement));
+    } on Object catch (e) {
+      return Failure(await _storageFailure(e, writing: false));
+    }
+  }
+
+  /// Valida con las mismas reglas que al crear (RF-01 a RF-06, RF-14;
+  /// CA-017, CA-019) y guarda los cambios del movimiento [id] (RF-08).
+  /// Si la escritura falla, el registro conserva su valor anterior y se
+  /// devuelve un error para la persona (CA-018).
+  Future<Result<void>> update(int id, MovementDraft draft) async {
+    final validation = await validate(draft);
+    if (validation case Failure(:final error)) return Failure(error);
+    final movement = _toMovement(draft, id: id);
+    try {
+      final changed = await _repository.updateMovement(movement);
+      return changed == 0 ? const Failure(_notFoundError) : const Success(null);
+    } on Object catch (e) {
+      return Failure(await _storageFailure(e, writing: true));
+    }
+  }
+
+  /// Elimina el movimiento [id] y, en cascada, su recibo (RF-09). Si llega
+  /// otra petición para el mismo id mientras la primera sigue en curso
+  /// (doble toque), se devuelve el mismo resultado: solo hay una baja y no
+  /// hay error (CA-024). Un id que ya no existe también cuenta como éxito.
+  Future<Result<void>> delete(int id) {
+    final pending = _pendingDeletes[id];
+    if (pending != null) return pending;
+    final operation = _deleteOnce(id);
+    _pendingDeletes[id] = operation;
+    return operation.whenComplete(() => _pendingDeletes.remove(id));
+  }
+
+  Future<Result<void>> _deleteOnce(int id) async {
+    try {
+      await _repository.deleteMovement(id);
+      return const Success(null);
+    } on Object catch (e) {
+      final error = await _storageFailure(e, writing: true);
+      return Failure(
+        AppError(type: error.type, message: MovementMessages.deleteFailed),
+      );
+    }
+  }
+
+  /// Balance del mes en curso, según la hora local del dispositivo
+  /// (RF-10; AMB-03). Sin movimientos devuelve $0.00 (CA-026).
+  Future<Result<MonthlyBalance>> currentMonthBalance() async {
+    final month = CalendarMonth.of(_clock());
+    try {
+      final movements =
+          await _repository.getMovementsByMonth(month.year, month.month);
+      return Success(_calculator.calculate(movements, month));
+    } on Object catch (e) {
+      return Failure(await _storageFailure(e, writing: false));
+    }
+  }
+
+  static const AppError _notFoundError = AppError(
+    type: ErrorType.unexpected,
+    message: MovementMessages.notFound,
+  );
+
   Future<AppError> _storageFailure(Object e, {required bool writing}) async {
     final error = translateStorageError(e, writing: writing);
     await _logger.log(type: error.type, module: module, cause: e);
     return error;
   }
 
-  /// Convierte el borrador ya validado al modelo de la base.
-  Movement _toMovement(MovementDraft draft) {
+  /// Convierte el borrador ya validado al modelo de la base. Con [id] es
+  /// una edición: el repositorio no cambia `creado_en` y pone su propio
+  /// `actualizado_en`.
+  Movement _toMovement(MovementDraft draft, {int? id}) {
     final now = _clock();
     final isExpense = draft.type == MovementType.egreso;
     final date = draft.date!;
     return Movement(
+      id: id,
       type: draft.type,
       amountCents: amountTextToCents(draft.amountText!),
       date: DateTime(date.year, date.month, date.day),
@@ -283,6 +375,7 @@ class MovementService {
         type: m.type,
         amountCents: m.amountCents,
         date: m.date,
+        categoryId: m.categoryId,
         categoryName: m.categoryName ?? '',
         paymentMethod: PaymentMethod.fromValue(m.paymentMethod),
         description: m.description,
@@ -296,6 +389,13 @@ int amountTextToCents(String amountText) {
   final parts = amountText.trim().split('.');
   final decimals = parts.length > 1 ? parts[1].padRight(2, '0') : '00';
   return int.parse(parts.first) * 100 + int.parse(decimals);
+}
+
+/// Convierte centavos al texto que acepta el campo de monto, para
+/// prellenar la edición: 123450 -> "1234.50".
+String centsToAmountText(int cents) {
+  final centavos = (cents % 100).toString().padLeft(2, '0');
+  return '${cents ~/ 100}.$centavos';
 }
 
 /// Quita espacios de los extremos; un texto vacío se guarda como `null`.

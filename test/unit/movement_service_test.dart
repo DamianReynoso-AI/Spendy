@@ -1,6 +1,8 @@
-// Pruebas del incremento 1: M-02 (servicio de movimientos), M-03 (catálogo),
-// M-11 (SQLite en memoria y en archivo) y M-13 (resultado y bitácora).
-// Cubre CA-001 a CA-015, CA-029 a CA-039, CA-067 y CA-147 a CA-153.
+// Pruebas de los incrementos 1 y 2: M-02 (servicio de movimientos y
+// balance), M-03 (catálogo), M-11 (SQLite en memoria y en archivo) y M-13
+// (resultado y bitácora).
+// Incremento 1: CA-001 a CA-015, CA-029 a CA-039, CA-067 y CA-147 a CA-153.
+// Incremento 2: CA-016 a CA-028, CA-035 y el balance de CA-001 / CA-007.
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -13,6 +15,7 @@ import 'package:spendy/data/models/movement.dart';
 import 'package:spendy/data/repositories/category_repository.dart';
 import 'package:spendy/data/repositories/movement_repository.dart';
 import 'package:spendy/modules/categories/category_catalog.dart';
+import 'package:spendy/modules/movements/balance_calculator.dart';
 import 'package:spendy/modules/movements/movement_service.dart';
 import 'package:sqflite/sqflite.dart' show Sqflite;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -38,7 +41,15 @@ class TestClock {
 class FakeMovementRepository implements MovementRepository {
   Object? insertError;
   Object? fetchError;
+  Object? updateError;
+  Object? deleteError;
   final List<Movement> saved = [];
+  final List<Movement> updated = [];
+  final List<int> deleted = [];
+
+  /// Retraso de cada baja, para simular un doble toque mientras la
+  /// primera sigue en curso (CA-024).
+  Duration deleteDelay = Duration.zero;
 
   @override
   Future<int> insert(Movement movement) async {
@@ -50,6 +61,37 @@ class FakeMovementRepository implements MovementRepository {
 
   @override
   Future<List<Movement>> fetchAll() async {
+    final error = fetchError;
+    if (error != null) throw error;
+    return const [];
+  }
+
+  @override
+  Future<Movement?> findById(int id) async {
+    final error = fetchError;
+    if (error != null) throw error;
+    return null;
+  }
+
+  @override
+  Future<int> updateMovement(Movement movement) async {
+    final error = updateError;
+    if (error != null) throw error;
+    updated.add(movement);
+    return 1;
+  }
+
+  @override
+  Future<int> deleteMovement(int id) async {
+    await Future<void>.delayed(deleteDelay);
+    final error = deleteError;
+    if (error != null) throw error;
+    deleted.add(id);
+    return 1;
+  }
+
+  @override
+  Future<List<Movement>> getMovementsByMonth(int year, int month) async {
     final error = fetchError;
     if (error != null) throw error;
     return const [];
@@ -183,8 +225,7 @@ void main() {
         expect(item.isIncome, isFalse);
       });
 
-      test('CA-002 / CA-008 error: 0, negativo, letras, 3 decimales',
-          () async {
+      test('CA-002 / CA-008 error: 0, negativo, letras, 3 decimales', () async {
         for (final amount in ['0', '0.00', '-5', 'abc', '10.999']) {
           final error = errorOf(await service.save(expense(amount: amount)));
           expect(error.type, ErrorType.validation);
@@ -230,7 +271,8 @@ void main() {
       test('CA-005 límite: 9999999.99 sí; 10000000.00 no', () async {
         expect((await service.save(expense(amount: '9999999.99'))).isSuccess,
             isTrue);
-        final error = errorOf(await service.save(expense(amount: '10000000.00')));
+        final error =
+            errorOf(await service.save(expense(amount: '10000000.00')));
         expect(error.fieldErrors[MovementFields.amount],
             ValidationMessages.amountTooHigh);
         final rows = await db.query('movimiento');
@@ -296,8 +338,7 @@ void main() {
         expect(await count(), 0);
       });
 
-      test('CA-010 error: en ingreso solo hay categorías de ingreso',
-          () async {
+      test('CA-010 error: en ingreso solo hay categorías de ingreso', () async {
         final options = (await catalog.forType(MovementType.ingreso))
             .valueOrNull!
             .map((c) => c.name);
@@ -341,7 +382,8 @@ void main() {
     });
 
     group('HU-03 lista (RF-07)', () {
-      test('CA-012 éxito: del más reciente al más antiguo, con tipo, monto, '
+      test(
+          'CA-012 éxito: del más reciente al más antiguo, con tipo, monto, '
           'fecha y categoría', () async {
         await service.save(expense(date: DateTime(2026, 11, 1)));
         await service.save(income(date: DateTime(2026, 11, 9)));
@@ -364,7 +406,8 @@ void main() {
         expect(result.valueOrNull, isEmpty);
       });
 
-      test('CA-014 límite: misma fecha, primero el creado más tarde y el '
+      test(
+          'CA-014 límite: misma fecha, primero el creado más tarde y el '
           'orden no cambia', () async {
         await service.save(expense(amount: '1'));
         await service.save(expense(amount: '2'));
@@ -429,7 +472,8 @@ void main() {
             (await catalog.forType(MovementType.egreso)).valueOrNull!;
         expect(
           () => options.add(
-            const CategoryOption(id: 99, name: 'Nueva', type: MovementType.egreso),
+            const CategoryOption(
+                id: 99, name: 'Nueva', type: MovementType.egreso),
           ),
           throwsUnsupportedError,
         );
@@ -464,7 +508,8 @@ void main() {
             .valueOrNull!
             .map((c) => c.name);
         expect(names, isNot(contains('Alimentos')));
-        final error = errorOf(await service.save(income(categoryId: alimentos)));
+        final error =
+            errorOf(await service.save(income(categoryId: alimentos)));
         expect(error.fieldErrors[MovementFields.category],
             MovementMessages.categoryWrongType);
         expect(await count(), 0);
@@ -566,9 +611,9 @@ void main() {
     });
 
     group('HU-40 formato (RF-54)', () {
-      test('CA-150 éxito: 1234.5 se ve como \$1,234.50 y DD/MM/AAAA',
-          () async {
-        await service.save(expense(amount: '1234.5', date: DateTime(2026, 1, 5)));
+      test('CA-150 éxito: 1234.5 se ve como \$1,234.50 y DD/MM/AAAA', () async {
+        await service
+            .save(expense(amount: '1234.5', date: DateTime(2026, 1, 5)));
         final item = (await listed()).single;
         expect(item.amountCents, 123450);
         expect(item.formattedAmount, r'$1,234.50');
@@ -587,6 +632,357 @@ void main() {
         await service.save(expense(amount: '9999999.99'));
         expect((await listed()).map((i) => i.formattedAmount),
             [r'$9,999,999.99', r'$0.01']);
+      });
+    });
+
+    // ---------------- Incremento 2 ----------------
+
+    Future<int> saveId(MovementDraft draft) async =>
+        (await service.save(draft)).valueOrNull!;
+
+    Future<MonthlyBalance> balance() async =>
+        (await service.currentMonthBalance()).valueOrNull!;
+
+    Future<Map<String, Object?>> rowOf(int id) async =>
+        (await db.query('movimiento', where: 'id = ?', whereArgs: [id])).single;
+
+    group('HU-04 editar (RF-08)', () {
+      test('CA-016 éxito: cambio el monto y lista y balance lo reflejan',
+          () async {
+        final id = await saveId(expense());
+        expect((await balance()).formattedBalance, r'-$350.00');
+        final before = await rowOf(id);
+
+        final result = await service.update(id, expense(amount: '500'));
+        expect(result.isSuccess, isTrue);
+        expect((await listed()).single.formattedAmount, r'$500.00');
+        expect((await balance()).formattedBalance, r'-$500.00');
+        final after = await rowOf(id);
+        expect(after['monto_centavos'], 50000);
+        expect(after['creado_en'], before['creado_en']);
+        expect(await count(), 1, reason: 'edita, no crea otro');
+      });
+
+      test('actualizado_en se pone con la hora actual en ISO 8601', () async {
+        final id = await saveId(expense());
+        final editedAt = DateTime(2026, 11, 10, 20, 15, 30);
+        final repo = MovementRepository(db, clock: () => editedAt);
+        final movement = (await repo.findById(id))!;
+        final changed = await repo.updateMovement(Movement(
+          id: id,
+          type: movement.type,
+          amountCents: 1,
+          date: movement.date,
+          categoryId: movement.categoryId,
+          paymentMethod: movement.paymentMethod,
+          createdAt: DateTime(1999),
+          updatedAt: DateTime(1999),
+        ));
+        expect(changed, 1);
+        final row = await rowOf(id);
+        expect(row['actualizado_en'], editedAt.toIso8601String());
+        expect(row['creado_en'], movement.createdAt.toIso8601String());
+      });
+
+      test('CA-017 error: monto inválido o fecha futura no se guardan',
+          () async {
+        final id = await saveId(expense(note: 'original'));
+        final before = await rowOf(id);
+        for (final amount in ['0', '-5', 'abc', '10.999', '10000000.00']) {
+          final error =
+              errorOf(await service.update(id, expense(amount: amount)));
+          expect(error.type, ErrorType.validation);
+          expect(error.fieldErrors, contains(MovementFields.amount));
+        }
+        final tomorrow = today.add(const Duration(days: 1));
+        final error =
+            errorOf(await service.update(id, expense(date: tomorrow)));
+        expect(error.fieldErrors[MovementFields.date],
+            ValidationMessages.dateFuture);
+        expect(await rowOf(id), before);
+      });
+
+      test('CA-017: las demás reglas de alta (RF-05, RF-06, RF-14) también',
+          () async {
+        final id = await saveId(expense());
+        final before = await rowOf(id);
+        final missing = errorOf(await service.update(
+          id,
+          expense(amount: '', categoryId: null, method: null),
+        ));
+        expect(missing.missingFields, [
+          MovementFields.amount,
+          MovementFields.category,
+          MovementFields.paymentMethod,
+        ]);
+        final tooLong = errorOf(
+          await service.update(id, expense(description: 'd' * 61)),
+        );
+        expect(tooLong.fieldErrors[MovementFields.description],
+            ValidationMessages.textTooLong(60));
+        final wrongType =
+            errorOf(await service.update(id, expense(categoryId: sueldos)));
+        expect(wrongType.fieldErrors[MovementFields.category],
+            MovementMessages.categoryWrongType);
+        expect(await rowOf(id), before);
+      });
+
+      test(
+          'CA-018 error: si la escritura falla, SQLite hace rollback y el '
+          'registro conserva su valor anterior', () async {
+        final id = await saveId(expense());
+        final before = await rowOf(id);
+        final broken = Movement(
+          id: id,
+          type: MovementType.egreso,
+          amountCents: 99900,
+          date: today,
+          categoryId: 999, // llave foránea inexistente: falla la escritura
+          paymentMethod: 'efectivo',
+          createdAt: today,
+          updatedAt: today,
+        );
+        await expectLater(repository.updateMovement(broken), throwsA(anything));
+        expect(await rowOf(id), before);
+        expect((await listed()).single.amountCents, 35000);
+      });
+
+      test(
+          'CA-019 límite: cambio categoría y método; se ve en lista, '
+          'detalle y balance', () async {
+        await saveId(income());
+        final id = await saveId(expense(amount: '4000'));
+        final result = await service.update(
+          id,
+          expense(
+            amount: '4000',
+            categoryId: transporte,
+            method: PaymentMethod.credito,
+          ),
+        );
+        expect(result.isSuccess, isTrue);
+        final listedItem = (await listed()).firstWhere((item) => item.id == id);
+        expect(listedItem.categoryName, 'Transporte');
+        expect(listedItem.paymentMethod, PaymentMethod.credito);
+        final detail = (await service.findById(id)).valueOrNull!;
+        expect(detail.categoryName, 'Transporte');
+        expect(detail.categoryId, transporte);
+        expect(detail.paymentMethod, PaymentMethod.credito);
+        expect((await balance()).formattedBalance, r'$11,000.00');
+      });
+
+      test('CA-020 límite: abrir y salir sin cambios deja el registro igual',
+          () async {
+        final id = await saveId(expense(description: 'Tienda', note: 'Nota'));
+        final before = await rowOf(id);
+        final item = (await service.findById(id)).valueOrNull!;
+        // El formulario prellena con estos valores; sin cambios no llama a
+        // update. Volver a leer el movimiento no lo modifica.
+        expect(centsToAmountText(item.amountCents), '350.00');
+        expect(item.description, 'Tienda');
+        expect(item.note, 'Nota');
+        expect(await rowOf(id), before);
+      });
+
+      test('CA-035 límite: con la nueva categoría en lista y balance',
+          () async {
+        final id = await saveId(expense(categoryId: alimentos));
+        await service.update(id, expense(categoryId: transporte));
+        expect((await listed()).single.categoryName, 'Transporte');
+        final monthRows = await repository.getMovementsByMonth(2026, 11);
+        expect(monthRows.single.categoryName, 'Transporte');
+        expect((await balance()).expenseCents, 35000);
+      });
+
+      test(
+          'RF-08: cualquier campo, incluso el tipo; un ingreso queda sin '
+          'método ni descripción', () async {
+        final id = await saveId(expense(description: 'Tienda'));
+        final result = await service.update(id, income(amount: '200'));
+        expect(result.isSuccess, isTrue);
+        final row = await rowOf(id);
+        expect(row['tipo'], 'ingreso');
+        expect(row['metodo_pago'], isNull);
+        expect(row['descripcion'], isNull);
+        expect((await balance()).formattedBalance, r'$200.00');
+      });
+
+      test('editar un movimiento que ya no existe avisa sin romper', () async {
+        final error = errorOf(await service.update(12345, expense()));
+        expect(error.message, MovementMessages.notFound);
+        expect(errorOf(await service.findById(12345)).message,
+            MovementMessages.notFound);
+        expect(await count(), 0);
+      });
+
+      test('updateMovement sin id es un error de programación', () {
+        final noId = Movement(
+          type: MovementType.egreso,
+          amountCents: 1,
+          date: today,
+          categoryId: alimentos,
+          createdAt: today,
+          updatedAt: today,
+        );
+        expect(() => repository.updateMovement(noId), throwsArgumentError);
+      });
+    });
+
+    group('HU-05 eliminar (RF-09)', () {
+      test('CA-021 éxito: se elimina y el balance se actualiza', () async {
+        await saveId(income());
+        final id = await saveId(expense(amount: '4000'));
+        expect((await balance()).formattedBalance, r'$11,000.00');
+        expect((await service.delete(id)).isSuccess, isTrue);
+        expect((await listed()).map((i) => i.id), isNot(contains(id)));
+        expect((await balance()).formattedBalance, r'$15,000.00');
+        expect(await count(), 1);
+      });
+
+      test('CA-022: sin confirmar no se toca nada', () async {
+        final id = await saveId(expense());
+        // "Cancelar" cierra el diálogo sin llamar a delete (ver prueba de
+        // pantalla); el servicio solo borra cuando se le pide.
+        expect(await count(), 1);
+        expect((await service.findById(id)).isSuccess, isTrue);
+      });
+
+      test('CA-023 (datos): el recibo asociado se borra en cascada (P-03)',
+          () async {
+        final id = await saveId(expense());
+        await db.insert('recibo', {
+          'movimiento_id': id,
+          'ruta_archivo': 'recibos/1.jpg',
+          'tamano_bytes': 1024,
+          'capturado_en': today.toIso8601String(),
+        });
+        await service.delete(id);
+        final receipts = Sqflite.firstIntValue(
+          await db.rawQuery('SELECT COUNT(*) FROM recibo'),
+        );
+        expect(receipts, 0);
+      });
+
+      test('CA-024 límite: doble toque rápido borra una vez y sin error',
+          () async {
+        final keep = await saveId(income());
+        final id = await saveId(expense());
+        final results = await Future.wait([
+          service.delete(id),
+          service.delete(id),
+        ]);
+        expect(results.every((r) => r.isSuccess), isTrue);
+        expect(await count(), 1);
+        expect((await listed()).single.id, keep);
+        // Un tercer toque tardío, con el id ya borrado, tampoco falla.
+        expect((await service.delete(id)).isSuccess, isTrue);
+        expect(await repository.deleteMovement(id), 0);
+      });
+    });
+
+    group('HU-06 balance del mes (RF-10)', () {
+      test('CA-025 éxito: \$15,000.00 - \$4,000.00 = \$11,000.00', () async {
+        await service.save(income(amount: '15000.00'));
+        await service.save(expense(amount: '4000.00'));
+        final value = await balance();
+        expect(value.incomeCents, 1500000);
+        expect(value.expenseCents, 400000);
+        expect(value.balanceCents, 1100000);
+        expect(value.formattedBalance, r'$11,000.00');
+        expect(value.month.label, 'noviembre 2026');
+      });
+
+      test('CA-026: sin movimientos en el mes es \$0.00 y no un error',
+          () async {
+        await service.save(expense(date: DateTime(2026, 10, 20)));
+        final result = await service.currentMonthBalance();
+        expect(result.isSuccess, isTrue);
+        expect(result.valueOrNull!.balanceCents, 0);
+        expect(result.valueOrNull!.formattedBalance, r'$0.00');
+      });
+
+      test('CA-027 límite: negativo con formato -\$500.00', () async {
+        await service.save(income(amount: '1000'));
+        await service.save(expense(amount: '1500'));
+        final value = await balance();
+        expect(value.balanceCents, -50000);
+        expect(value.isNegative, isTrue);
+        expect(value.formattedBalance, r'-$500.00');
+      });
+
+      test('CA-028 límite: el último día del mes anterior no cuenta', () async {
+        await service.save(income(amount: '100', date: DateTime(2026, 10, 31)));
+        await service.save(expense(amount: '50', date: DateTime(2026, 11, 1)));
+        expect((await balance()).formattedBalance, r'-$50.00');
+      });
+
+      test('CA-001 / CA-007: el balance cambia al registrar', () async {
+        await service.save(expense());
+        expect((await balance()).formattedBalance, r'-$350.00');
+        await service.save(income());
+        expect((await balance()).formattedBalance, r'$14,650.00');
+      });
+
+      test('getMovementsByMonth: del día 1 al último, sin vecinos', () async {
+        final created = DateTime(2026, 1, 1);
+        for (final date in [
+          DateTime(2026, 1, 31),
+          DateTime(2026, 2, 1),
+          DateTime(2026, 2, 28),
+          DateTime(2026, 3, 1),
+        ]) {
+          await repository.insert(Movement(
+            type: MovementType.ingreso,
+            amountCents: 100,
+            date: date,
+            categoryId: sueldos,
+            createdAt: created,
+            updatedAt: created,
+          ));
+        }
+        final february = await repository.getMovementsByMonth(2026, 2);
+        expect(february.map((m) => toIsoDate(m.date)),
+            ['2026-02-28', '2026-02-01']);
+        expect(await repository.getMovementsByMonth(2026, 4), isEmpty);
+      });
+
+      test('la consulta del mes usa el índice de fecha', () async {
+        final plan = await db.rawQuery(
+          'EXPLAIN QUERY PLAN ${MovementRepository.monthSql}',
+          ['2026-11-01', '2026-11-31'],
+        );
+        expect(plan.map((r) => r['detail']).join(' '),
+            contains('idx_movimiento_fecha'));
+      });
+
+      test(
+          'RNF-08: guardar y ver lista y balance en 1 s o menos, '
+          'con 2,000 movimientos', () async {
+        final batch = db.batch();
+        for (var i = 0; i < 2000; i++) {
+          final created = DateTime(2026, 11, 1).add(Duration(minutes: i));
+          batch.insert(
+            'movimiento',
+            Movement(
+              type: i.isEven ? MovementType.egreso : MovementType.ingreso,
+              amountCents: 100,
+              date: DateTime(2026, 11, 1 + i % 10),
+              categoryId: i.isEven ? alimentos : sueldos,
+              paymentMethod: i.isEven ? 'efectivo' : null,
+              createdAt: created,
+              updatedAt: created,
+            ).toRow(),
+          );
+        }
+        await batch.commit(noResult: true);
+        final watch = Stopwatch()..start();
+        await service.save(income(amount: '1'));
+        final items = await listed();
+        final value = await balance();
+        watch.stop();
+        expect(items, hasLength(2001));
+        expect(value.balanceCents, 100);
+        expect(watch.elapsed, lessThanOrEqualTo(const Duration(seconds: 1)));
       });
     });
 
@@ -620,8 +1016,7 @@ void main() {
 
     tearDown(() => db.close());
 
-    test('CA-029 éxito: falla, avisa, conserva y permite reintentar',
-        () async {
+    test('CA-029 éxito: falla, avisa, conserva y permite reintentar', () async {
       fakeRepo.insertError = const FileSystemException('escritura');
       final draft = expense(note: 'Comida del lunes');
       final error = errorOf(await service.save(draft));
@@ -651,8 +1046,10 @@ void main() {
       expect(fakeRepo.saved, isEmpty);
 
       final log = logFile.readAsStringSync();
-      expect(log, contains('almacenamiento_lleno | M-02 | '
-          'LeakyStorageException'));
+      expect(
+          log,
+          contains('almacenamiento_lleno | M-02 | '
+              'LeakyStorageException'));
       for (final secret in ['35000', '350', 'Tienda', 'Comida', 'INSERT']) {
         expect(log, isNot(contains(secret)), reason: 'RNF-20: $secret');
       }
@@ -674,10 +1071,133 @@ void main() {
       expect(logFile.readAsStringSync(), contains('almacenamiento_lectura'));
     });
 
+    test('CA-018 error: falla al editar, mensaje no técnico y bitácora',
+        () async {
+      fakeRepo.updateError = LeakyStorageException();
+      final error = errorOf(
+        await service.update(1, expense(note: 'Comida del lunes')),
+      );
+      expect(error.type, ErrorType.storageFull);
+      expect(error.message, isNot(contains('SQLITE')));
+      expect(fakeRepo.updated, isEmpty);
+      expect(logFile.readAsStringSync(),
+          contains('almacenamiento_lleno | M-02 | LeakyStorageException'));
+
+      fakeRepo.updateError = StateError('escritura');
+      final write = errorOf(await service.update(1, expense()));
+      expect(write.type, ErrorType.storageWrite);
+      expect(write.message, ErrorMessages.saveFailed);
+    });
+
+    test('CA-018: la edición lleva el id y no se escribe si no es válida',
+        () async {
+      expect((await service.update(7, expense())).isSuccess, isTrue);
+      expect(fakeRepo.updated.single.id, 7);
+      fakeRepo.updateError = StateError('no debe llamarse');
+      final error = errorOf(await service.update(7, expense(amount: '0')));
+      expect(error.type, ErrorType.validation);
+    });
+
+    test('CA-024: con la primera baja en curso, la segunda no borra otra vez',
+        () async {
+      fakeRepo.deleteDelay = const Duration(milliseconds: 50);
+      final first = service.delete(3);
+      final second = service.delete(3);
+      final results = await Future.wait([first, second]);
+      expect(results.every((r) => r.isSuccess), isTrue);
+      expect(fakeRepo.deleted, [3]);
+      // Ya terminó: una baja nueva del mismo id vuelve a intentarse.
+      await service.delete(3);
+      expect(fakeRepo.deleted, [3, 3]);
+    });
+
+    test('falla al eliminar: mensaje no técnico y el movimiento sigue',
+        () async {
+      fakeRepo.deleteError = const FileSystemException('escritura');
+      final error = errorOf(await service.delete(1));
+      expect(error.type, ErrorType.storageWrite);
+      expect(error.message, MovementMessages.deleteFailed);
+      expect(fakeRepo.deleted, isEmpty);
+      expect(logFile.readAsStringSync(), contains('almacenamiento_escritura'));
+    });
+
+    test('falla al leer el balance o el detalle: error de lectura', () async {
+      fakeRepo.fetchError = const FileSystemException('lectura');
+      final balance = errorOf(await service.currentMonthBalance());
+      expect(balance.type, ErrorType.storageRead);
+      expect(balance.message, ErrorMessages.loadFailed);
+      final detail = errorOf(await service.findById(1));
+      expect(detail.type, ErrorType.storageRead);
+    });
+
     test('una validación fallida no toca el repositorio', () async {
       fakeRepo.insertError = StateError('no debe llamarse');
       final error = errorOf(await service.save(expense(amount: '0')));
       expect(error.type, ErrorType.validation);
+    });
+  });
+
+  group('M-02 BalanceCalculator (RF-10, AMB-03)', () {
+    const calculator = BalanceCalculator();
+
+    Movement movement(MovementType type, int cents, DateTime date) => Movement(
+          type: type,
+          amountCents: cents,
+          date: date,
+          categoryId: type == MovementType.ingreso ? sueldos : alimentos,
+          createdAt: date,
+          updatedAt: date,
+        );
+
+    test('mes en curso: mes calendario de la hora local', () {
+      final local = DateTime(2026, 11, 30, 23, 59);
+      expect(CalendarMonth.of(local), const CalendarMonth(2026, 11));
+      final utc = DateTime.utc(2026, 12, 1, 3);
+      final expected = utc.toLocal();
+      expect(
+          CalendarMonth.of(utc), CalendarMonth(expected.year, expected.month));
+      expect(const CalendarMonth(2026, 11).hashCode,
+          const CalendarMonth(2026, 11).hashCode);
+      expect(
+          const CalendarMonth(2026, 11), isNot(const CalendarMonth(2026, 10)));
+    });
+
+    test('contains: excluye el último día del mes anterior (CA-028)', () {
+      const november = CalendarMonth(2026, 11);
+      expect(november.contains(DateTime(2026, 10, 31)), isFalse);
+      expect(november.contains(DateTime(2026, 11, 1)), isTrue);
+      expect(november.contains(DateTime(2026, 11, 30)), isTrue);
+      expect(november.contains(DateTime(2026, 12, 1)), isFalse);
+      expect(november.contains(DateTime(2025, 11, 15)), isFalse);
+    });
+
+    test('etiqueta en español', () {
+      expect(const CalendarMonth(2026, 1).label, 'enero 2026');
+      expect(const CalendarMonth(2026, 12).label, 'diciembre 2026');
+    });
+
+    test('suma en centavos e ignora otros meses', () {
+      final value = calculator.calculate([
+        movement(MovementType.ingreso, 1500000, DateTime(2026, 11, 1)),
+        movement(MovementType.egreso, 400000, DateTime(2026, 11, 30)),
+        movement(MovementType.ingreso, 999, DateTime(2026, 10, 31)),
+        movement(MovementType.egreso, 1, DateTime(2026, 11, 15)),
+      ], const CalendarMonth(2026, 11));
+      expect(value.incomeCents, 1500000);
+      expect(value.expenseCents, 400001);
+      expect(value.balanceCents, 1099999);
+      expect(value.formattedBalance, r'$10,999.99');
+    });
+
+    test('CA-026 y CA-027: vacío es \$0.00; negativo es -\$500.00', () {
+      const month = CalendarMonth(2026, 11);
+      expect(calculator.calculate(const [], month).formattedBalance, r'$0.00');
+      final negative = calculator.calculate(
+        [movement(MovementType.egreso, 50000, DateTime(2026, 11, 2))],
+        month,
+      );
+      expect(negative.isNegative, isTrue);
+      expect(negative.formattedBalance, r'-$500.00');
     });
   });
 
@@ -686,7 +1206,8 @@ void main() {
       final catalog = CategoryCatalog(FailingCategoryRepository(), logger);
       final forType = await catalog.forType(MovementType.egreso);
       expect(forType.errorOrNull?.message, ErrorMessages.loadFailed);
-      final belongs = await catalog.belongsToType(alimentos, MovementType.egreso);
+      final belongs =
+          await catalog.belongsToType(alimentos, MovementType.egreso);
       expect(belongs.errorOrNull?.type, ErrorType.storageRead);
 
       final fakeRepo = FakeMovementRepository();
@@ -719,8 +1240,7 @@ void main() {
       expect(err.fields, ['monto', 'fecha']);
     });
 
-    test('RNF-20: la línea tiene fecha, tipo, módulo y causa, sin datos',
-        () {
+    test('RNF-20: la línea tiene fecha, tipo, módulo y causa, sin datos', () {
       final fixed = ErrorLogger(
         () async => logFile,
         clock: () => DateTime.utc(2026, 11, 10, 18, 30),
@@ -730,7 +1250,8 @@ void main() {
         module: 'M-02 \n inyectado',
         cause: LeakyStorageException(),
       );
-      expect(line,
+      expect(
+          line,
           '2026-11-10T18:30:00.000Z | almacenamiento_escritura | M-02inyectado'
           ' | LeakyStorageException');
     });
@@ -787,6 +1308,13 @@ void main() {
       expect(amountTextToCents('0.01'), 1);
       expect(amountTextToCents(' 7 '), 700);
       expect(amountTextToCents('9999999.99'), 999999999);
+    });
+
+    test('centsToAmountText prellena la edición', () {
+      expect(centsToAmountText(123450), '1234.50');
+      expect(centsToAmountText(1), '0.01');
+      expect(centsToAmountText(999999999), '9999999.99');
+      expect(amountTextToCents(centsToAmountText(35000)), 35000);
     });
 
     test('PaymentMethod.fromValue', () {

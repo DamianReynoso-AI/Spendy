@@ -1,5 +1,7 @@
-// Pruebas de las pantallas del incremento 1 (M-01) con repositorios en
-// memoria: formulario, lista, estado vacío, errores y texto al 200 %.
+// Pruebas de las pantallas de los incrementos 1 y 2 (M-01) con
+// repositorios en memoria: formulario, lista, estado vacío, errores, texto
+// al 200 %, balance del mes, detalle, edición y eliminación.
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -33,6 +35,11 @@ class MemoryCategoryRepository implements CategoryRepository {
 class MemoryMovementRepository implements MovementRepository {
   final List<Movement> rows = [];
   Object? insertError;
+  Object? updateError;
+  int deleteCalls = 0;
+
+  /// Si no es `null`, cada baja espera a que se complete (CA-024).
+  Completer<void>? deleteGate;
 
   @override
   Future<int> insert(Movement movement) async {
@@ -51,6 +58,40 @@ class MemoryMovementRepository implements MovementRepository {
 
   @override
   Future<List<Movement>> fetchAll() async => rows.reversed.toList();
+
+  @override
+  Future<Movement?> findById(int id) async =>
+      rows.where((m) => m.id == id).firstOrNull;
+
+  @override
+  Future<int> updateMovement(Movement movement) async {
+    final error = updateError;
+    if (error != null) throw error;
+    final index = rows.indexWhere((m) => m.id == movement.id);
+    if (index < 0) return 0;
+    final names = {
+      for (final c in await MemoryCategoryRepository().fetchAll()) c.id: c.name,
+    };
+    rows[index] = Movement.fromRow({
+      ...movement.toRow(),
+      'id': movement.id,
+      'categoria_nombre': names[movement.categoryId],
+    });
+    return 1;
+  }
+
+  @override
+  Future<int> deleteMovement(int id) async {
+    deleteCalls++;
+    await deleteGate?.future;
+    final before = rows.length;
+    rows.removeWhere((m) => m.id == id);
+    return before - rows.length;
+  }
+
+  @override
+  Future<List<Movement>> getMovementsByMonth(int year, int month) async =>
+      rows.where((m) => m.date.year == year && m.date.month == month).toList();
 }
 
 void main() {
@@ -130,8 +171,8 @@ void main() {
       (tester) async {
     await pumpApp(tester);
     await openForm(tester);
-    await tester.enterText(find.widgetWithText(TextField, 'Nota (opcional)'),
-        'Comida del lunes');
+    await tester.enterText(
+        find.widgetWithText(TextField, 'Nota (opcional)'), 'Comida del lunes');
     await tester.tap(find.text('Guardar'));
     await tester.pumpAndSettle();
 
@@ -156,7 +197,8 @@ void main() {
     expect(find.text('200/200'), findsOneWidget);
   });
 
-  testWidgets('CA-010 / CA-036: en ingreso solo hay categorías de ingreso '
+  testWidgets(
+      'CA-010 / CA-036: en ingreso solo hay categorías de ingreso '
       'y no hay método de pago', (tester) async {
     await pumpApp(tester);
     await openForm(tester);
@@ -171,7 +213,8 @@ void main() {
     expect(find.text('Alimentos'), findsNothing);
   });
 
-  testWidgets('CA-029: falla de escritura, mensaje, datos intactos y '
+  testWidgets(
+      'CA-029: falla de escritura, mensaje, datos intactos y '
       'Reintentar', (tester) async {
     repo.insertError = const FileSystemException('escritura');
     await pumpApp(tester);
@@ -229,5 +272,231 @@ void main() {
       const StartupErrorApp(message: ErrorMessages.loadFailed),
     );
     expect(find.text(ErrorMessages.loadFailed), findsOneWidget);
+  });
+
+  // ---------------- Incremento 2 ----------------
+
+  Future<void> seed(String amount, {MovementType type = MovementType.egreso}) =>
+      service.save(MovementDraft(
+        type: type,
+        amountText: amount,
+        date: DateTime.now(),
+        categoryId: type == MovementType.egreso ? 1 : 7,
+        paymentMethod:
+            type == MovementType.egreso ? PaymentMethod.efectivo : null,
+      ));
+
+  Future<void> openDetail(WidgetTester tester, String amountText) async {
+    // Se toca la parte de arriba del renglón: con texto al 200 % su centro
+    // puede quedar fuera de la pantalla.
+    final tile = find.ancestor(
+      of: find.text(amountText),
+      matching: find.byType(InkWell),
+    );
+    await tester.tapAt(tester.getTopLeft(tile) + const Offset(24, 12));
+    await tester.pumpAndSettle();
+    expect(find.text('Detalle del movimiento'), findsOneWidget);
+  }
+
+  /// Botón "atrás" del sistema.
+  Future<void> goBack(WidgetTester tester) async {
+    await tester.state<NavigatorState>(find.byType(Navigator)).maybePop();
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> openEdit(WidgetTester tester) async {
+    await tester.tap(find.text('Editar'));
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> tapDelete(WidgetTester tester) async {
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Eliminar'));
+    await tester.pumpAndSettle();
+  }
+
+  final confirmDelete = find.widgetWithText(FilledButton, 'Eliminar');
+
+  testWidgets('CA-026: sin movimientos el balance muestra \$0.00',
+      (tester) async {
+    await pumpApp(tester);
+    expect(find.textContaining('Balance de '), findsOneWidget);
+    expect(find.text(r'$0.00'), findsOneWidget);
+  });
+
+  testWidgets('CA-001 / CA-007: el balance se actualiza al registrar',
+      (tester) async {
+    await seed('15000', type: MovementType.ingreso);
+    await pumpApp(tester);
+    expect(find.text(r'$15,000.00'), findsOneWidget);
+    await tester.tap(find.text('Registrar'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, '4000');
+    await choose(tester, categoryDropdown, 'Alimentos');
+    await choose(tester, methodDropdown, 'Efectivo');
+    await tester.tap(find.text('Guardar'));
+    await tester.pumpAndSettle();
+    expect(find.text(r'$11,000.00'), findsOneWidget, reason: 'CA-025');
+  });
+
+  testWidgets('CA-027: balance negativo con -\$500.00', (tester) async {
+    await seed('500');
+    await pumpApp(tester);
+    expect(find.text(r'-$500.00'), findsOneWidget);
+  });
+
+  testWidgets('CA-016: edito el monto y lista, detalle y balance cambian',
+      (tester) async {
+    await seed('350');
+    await pumpApp(tester);
+    await openDetail(tester, r'−$350.00');
+    await openEdit(tester);
+    expect(find.text('Editar egreso'), findsOneWidget);
+    expect(find.text('350.00'), findsOneWidget, reason: 'datos prellenados');
+    await tester.enterText(find.byType(TextField).first, '500');
+    await tester.tap(find.text('Guardar'));
+    await tester.pumpAndSettle();
+    expect(find.text('Cambios guardados.'), findsOneWidget);
+    expect(find.text(r'$500.00'), findsOneWidget, reason: 'detalle');
+    await goBack(tester);
+    await tester.pumpAndSettle();
+    expect(find.text(r'−$500.00'), findsOneWidget);
+    expect(find.text(r'-$500.00'), findsOneWidget);
+    expect(repo.rows.single.amountCents, 50000);
+  });
+
+  testWidgets('CA-019 / CA-035: cambio la categoría y el método de pago',
+      (tester) async {
+    await seed('350');
+    await pumpApp(tester);
+    await openDetail(tester, r'−$350.00');
+    await openEdit(tester);
+    await choose(tester, categoryDropdown, 'Transporte');
+    await choose(tester, methodDropdown, 'Crédito');
+    await tester.tap(find.text('Guardar'));
+    await tester.pumpAndSettle();
+    expect(find.text('Transporte'), findsOneWidget);
+    expect(find.text('Crédito'), findsOneWidget);
+    await goBack(tester);
+    await tester.pumpAndSettle();
+    expect(find.text('Transporte'), findsOneWidget);
+    expect(repo.rows.single.paymentMethod, 'credito');
+  });
+
+  testWidgets('CA-017: en edición se aplican las validaciones de alta',
+      (tester) async {
+    await seed('350');
+    await pumpApp(tester);
+    await openDetail(tester, r'−$350.00');
+    await openEdit(tester);
+    await tester.enterText(find.byType(TextField).first, '0');
+    await tester.tap(find.text('Guardar'));
+    await tester.pumpAndSettle();
+    expect(find.text('Editar egreso'), findsOneWidget);
+    expect(find.text(ErrorMessages.invalidFields), findsOneWidget);
+    expect(repo.rows.single.amountCents, 35000);
+  });
+
+  testWidgets('CA-018: si falla el guardado, mensaje claro y valor anterior',
+      (tester) async {
+    await seed('350');
+    repo.updateError = const FileSystemException('escritura');
+    await pumpApp(tester);
+    await openDetail(tester, r'−$350.00');
+    await openEdit(tester);
+    await tester.enterText(find.byType(TextField).first, '999');
+    await tester.tap(find.text('Guardar'));
+    await tester.pumpAndSettle();
+    expect(find.text(ErrorMessages.saveFailed), findsOneWidget);
+    expect(find.text('999'), findsOneWidget, reason: 'lo capturado sigue');
+    expect(repo.rows.single.amountCents, 35000);
+  });
+
+  testWidgets('CA-020: salir o guardar sin cambios no modifica nada',
+      (tester) async {
+    await seed('350');
+    final before = repo.rows.single.toRow();
+    await pumpApp(tester);
+    await openDetail(tester, r'−$350.00');
+    await openEdit(tester);
+    await goBack(tester);
+    await tester.pumpAndSettle();
+    expect(find.text('Detalle del movimiento'), findsOneWidget);
+    await openEdit(tester);
+    await tester.tap(find.text('Guardar'));
+    await tester.pumpAndSettle();
+    expect(find.text('Cambios guardados.'), findsNothing);
+    expect(find.text('Detalle del movimiento'), findsOneWidget);
+    expect(repo.rows.single.toRow(), before);
+  });
+
+  testWidgets('CA-022: "Cancelar" cierra el diálogo y no borra',
+      (tester) async {
+    await seed('350');
+    await pumpApp(tester);
+    await openDetail(tester, r'−$350.00');
+    await tapDelete(tester);
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(find.text('¿Eliminar este movimiento?'), findsOneWidget);
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(repo.rows, hasLength(1));
+    expect(repo.deleteCalls, 0);
+  });
+
+  testWidgets('CA-021: confirmar borra y actualiza lista y balance',
+      (tester) async {
+    await seed('15000', type: MovementType.ingreso);
+    await seed('4000');
+    await pumpApp(tester);
+    expect(find.text(r'$11,000.00'), findsOneWidget);
+    await openDetail(tester, r'−$4,000.00');
+    await tapDelete(tester);
+    await tester.tap(confirmDelete);
+    await tester.pumpAndSettle();
+    expect(find.text('Movimiento eliminado.'), findsOneWidget);
+    expect(find.text(r'−$4,000.00'), findsNothing);
+    expect(find.text(r'$15,000.00'), findsOneWidget);
+    expect(repo.rows, hasLength(1));
+  });
+
+  testWidgets('CA-024: "Eliminar" se deshabilita al primer toque',
+      (tester) async {
+    await seed('350');
+    repo.deleteGate = Completer<void>();
+    await pumpApp(tester);
+    await openDetail(tester, r'−$350.00');
+    await tapDelete(tester);
+    await tester.tap(confirmDelete);
+    await tester.pump();
+    final button = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Eliminando…'),
+    );
+    expect(button.onPressed, isNull);
+    await tester.tap(find.text('Eliminando…'), warnIfMissed: false);
+    await tester.pump();
+    repo.deleteGate!.complete();
+    await tester.pumpAndSettle();
+    expect(repo.deleteCalls, 1);
+    expect(repo.rows, isEmpty);
+    expect(find.text('Aún no tienes movimientos'), findsOneWidget);
+    expect(find.text(r'$0.00'), findsOneWidget);
+  });
+
+  testWidgets('RNF-06: detalle y diálogo al 200 % y áreas táctiles',
+      (tester) async {
+    await seed('9999999.99', type: MovementType.ingreso);
+    await pumpApp(tester, textScale: 2);
+    await openDetail(tester, r'+$9,999,999.99');
+    expect(tester.takeException(), isNull);
+    await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+    await tester.scrollUntilVisible(
+      find.widgetWithText(OutlinedButton, 'Eliminar'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tapDelete(tester);
+    expect(tester.takeException(), isNull);
+    await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
   });
 }

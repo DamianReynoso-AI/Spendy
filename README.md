@@ -8,10 +8,10 @@ App móvil en Flutter para registrar ingresos, egresos y comprobantes fiscales.
 |---|---|---|
 | M-12 Configuración y formato | `lib/config/`, `lib/core/formatters.dart`, `lib/core/validators.dart` | Implementado con pruebas unitarias |
 | M-13 Errores y bitácora | `lib/core/result.dart`, `lib/core/error_logger.dart` | Incremento 1 (v0.1.0) |
-| M-11 Persistencia (SQLite) | `lib/data/` | Incremento 1: base v1, categorías, crear y listar movimientos |
+| M-11 Persistencia (SQLite) | `lib/data/` | Incremento 1: base v1, categorías, crear y listar movimientos. Incremento 2 (v0.2.0): editar, eliminar y consulta por mes |
 | M-03 Categorías | `lib/modules/categories/` | Incremento 1 |
-| M-02 Movimientos | `lib/modules/movements/` | Incremento 1: validar, crear y listar |
-| M-01 Interfaz | `lib/app.dart`, `lib/ui/` | Incremento 1: formulario de captura y lista |
+| M-02 Movimientos | `lib/modules/movements/` | Incremento 1: validar, crear y listar. Incremento 2: editar, eliminar sin dobles bajas y balance del mes (`balance_calculator.dart`) |
+| M-01 Interfaz | `lib/app.dart`, `lib/ui/` | Incremento 1: formulario de captura y lista. Incremento 2: pantalla principal con balance del mes, detalle, edición y confirmación de borrado |
 
 ## Correr las pruebas
 

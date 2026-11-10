@@ -1,5 +1,5 @@
-/// M-01 · Formulario para registrar un ingreso o un egreso
-/// (RF-01 a RF-06, RF-11, RF-14).
+/// M-01 · Formulario para registrar o editar un ingreso o un egreso
+/// (RF-01 a RF-06, RF-08, RF-11, RF-14).
 ///
 /// Solo habla con los servicios de M-02 y M-03; nunca con `lib/data/`
 /// (RNF-30). Si algo falla, los datos capturados se quedan en el formulario
@@ -17,18 +17,27 @@ import '../../modules/movements/movement_service.dart';
 import '../widgets/amount_field.dart';
 
 /// Pantalla de captura. Al guardar con éxito regresa `true`.
+///
+/// Con [movement] abre en modo edición (RF-08): los campos vienen
+/// prellenados y "Guardar" actualiza ese movimiento. Si la persona sale o
+/// guarda sin cambiar nada, regresa `false` y no se escribe en la base
+/// (CA-020).
 class MovementFormScreen extends StatefulWidget {
   const MovementFormScreen({
     super.key,
     required this.service,
     required this.catalog,
     this.initialType = MovementType.egreso,
+    this.movement,
     this.clock,
   });
 
   final MovementService service;
   final CategoryCatalog catalog;
   final MovementType initialType;
+
+  /// Movimiento a editar; `null` para registrar uno nuevo.
+  final MovementItem? movement;
 
   /// Reloj para fijar "hoy" en pruebas; por defecto, el del dispositivo.
   final DateTime Function()? clock;
@@ -38,14 +47,18 @@ class MovementFormScreen extends StatefulWidget {
 }
 
 class _MovementFormScreenState extends State<MovementFormScreen> {
-  final _amount = TextEditingController();
-  final _description = TextEditingController();
-  final _note = TextEditingController();
+  late final MovementItem? _original = widget.movement;
+  late final _amount = TextEditingController(
+    text: _original == null ? '' : centsToAmountText(_original.amountCents),
+  );
+  late final _description =
+      TextEditingController(text: _original?.description ?? '');
+  late final _note = TextEditingController(text: _original?.note ?? '');
 
-  late MovementType _type = widget.initialType;
-  late DateTime _date = _today();
-  int? _categoryId;
-  PaymentMethod? _paymentMethod;
+  late MovementType _type = _original?.type ?? widget.initialType;
+  late DateTime _date = _original?.date ?? _today();
+  late int? _categoryId = _original?.categoryId;
+  late PaymentMethod? _paymentMethod = _original?.paymentMethod;
 
   List<CategoryOption> _categories = const [];
   bool _loadingCategories = true;
@@ -57,6 +70,7 @@ class _MovementFormScreenState extends State<MovementFormScreen> {
   bool _saving = false;
 
   bool get _isExpense => _type == MovementType.egreso;
+  bool get _isEditing => _original != null;
 
   DateTime _today() {
     final now = (widget.clock ?? DateTime.now)();
@@ -114,7 +128,7 @@ class _MovementFormScreenState extends State<MovementFormScreen> {
     final picked = await showDatePicker(
       context: context,
       initialDate: _date.isAfter(today) ? today : _date,
-      firstDate: DateTime(2000),
+      firstDate: _date.isBefore(DateTime(2000)) ? _date : DateTime(2000),
       lastDate: today,
       helpText: 'Elige la fecha',
       cancelText: 'Cancelar',
@@ -135,14 +149,43 @@ class _MovementFormScreenState extends State<MovementFormScreen> {
         note: _note.text,
       );
 
+  /// `true` si algún campo es distinto del movimiento original. Compara
+  /// el borrador con el original campo por campo (los ingresos no tienen
+  /// método ni descripción, así que ambos quedan en `null`).
+  bool _hasChanges(MovementItem original) {
+    final draft = _draft();
+    final differences = [
+      draft.type != original.type,
+      draft.amountText != centsToAmountText(original.amountCents),
+      !DateUtils.isSameDay(draft.date, original.date),
+      draft.categoryId != original.categoryId,
+      draft.paymentMethod != original.paymentMethod,
+      (draft.description ?? '') != (original.description ?? ''),
+      (draft.note ?? '') != (original.note ?? ''),
+    ];
+    return differences.contains(true);
+  }
+
+  /// Crea o, en modo edición, actualiza. Sin cambios no escribe (CA-020).
+  Future<Result<void>?> _submit() {
+    final original = _original;
+    if (original == null) return widget.service.save(_draft());
+    if (!_hasChanges(original)) return Future.value();
+    return widget.service.update(original.id, _draft());
+  }
+
   Future<void> _save() async {
     if (_saving) return;
     setState(() {
       _saving = true;
       _message = null;
     });
-    final result = await widget.service.save(_draft());
+    final result = await _submit();
     if (!mounted) return;
+    if (result == null) {
+      Navigator.of(context).pop(false);
+      return;
+    }
     switch (result) {
       case Success():
         Navigator.of(context).pop(true);
@@ -160,7 +203,7 @@ class _MovementFormScreenState extends State<MovementFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isExpense ? 'Registrar egreso' : 'Registrar ingreso'),
+        title: Text(_title()),
       ),
       body: SafeArea(
         child: ListView(
@@ -168,7 +211,10 @@ class _MovementFormScreenState extends State<MovementFormScreen> {
           children: [
             _typeSelector(),
             const SizedBox(height: 16),
-            if (_message != null) ...[_messageBanner(), const SizedBox(height: 16)],
+            if (_message != null) ...[
+              _messageBanner(),
+              const SizedBox(height: 16)
+            ],
             AmountField(
               controller: _amount,
               errorText: _fieldErrors[MovementFields.amount],
@@ -192,6 +238,11 @@ class _MovementFormScreenState extends State<MovementFormScreen> {
         ),
       ),
     );
+  }
+
+  String _title() {
+    final action = _isEditing ? 'Editar' : 'Registrar';
+    return '$action ${_isExpense ? 'egreso' : 'ingreso'}';
   }
 
   Widget _typeSelector() {

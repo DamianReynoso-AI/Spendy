@@ -7,7 +7,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'modules/categories/category_catalog.dart';
 import 'modules/movements/movement_service.dart';
-import 'ui/screens/movement_list_screen.dart';
+import 'ui/screens/home_screen.dart';
 
 /// Idioma y región fijos: la app no cambia aunque el teléfono esté en
 /// inglés (CA-152).
@@ -37,7 +37,7 @@ class SpendyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) =>
-      _materialApp(MovementListScreen(service: service, catalog: catalog));
+      _materialApp(HomeScreen(service: service, catalog: catalog));
 }
 
 /// Se muestra si la base no se pudo abrir al iniciar.
