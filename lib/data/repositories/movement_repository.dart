@@ -147,6 +147,35 @@ JOIN categoria c ON c.id = m.categoria_id''';
     return deleted;
   }
 
+  /// Movimientos que cumplen todos los filtros recibidos a la vez
+  /// (RF-32, CA-083, CA-091). Las fechas van como "AAAA-MM-DD" y [type]
+  /// como 'ingreso' o 'egreso'. Todos los valores van como parámetros `?`,
+  /// nunca pegados al SQL, así que caracteres como `%`, `_` o `'` no causan
+  /// errores ni inyección (CA-088). Usa los índices de fecha, categoría y
+  /// tipo + fecha (RNF-09) y conserva el orden de la lista (RF-07).
+  Future<List<Movement>> queryFilteredMovements({
+    String? startDate,
+    String? endDate,
+    int? categoryId,
+    String? type,
+  }) async {
+    final where = <String>[];
+    final args = <Object>[];
+    void add(String condition, Object? value) {
+      if (value == null) return;
+      where.add(condition);
+      args.add(value);
+    }
+
+    add('m.fecha >= ?', startDate);
+    add('m.fecha <= ?', endDate);
+    add('m.categoria_id = ?', categoryId);
+    add('m.tipo = ?', type);
+    final filter = where.isEmpty ? '' : '\nWHERE ${where.join(' AND ')}';
+    final rows = await _db.rawQuery('$_selectSql$filter\n$_orderSql', args);
+    return rows.map(Movement.fromRow).toList(growable: false);
+  }
+
   /// Años distintos que tienen movimientos, del más reciente al más
   /// antiguo (RF-36).
   static const String yearsSql =

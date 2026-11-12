@@ -288,7 +288,7 @@ class MovementService {
   Future<Result<List<MovementItem>>> list() async {
     try {
       final movements = await _repository.fetchAll();
-      return Success(movements.map(_toItem).toList(growable: false));
+      return Success(movements.map(toMovementItem).toList(growable: false));
     } on Object catch (e) {
       return Failure(await _storageFailure(e, writing: false));
     }
@@ -301,7 +301,7 @@ class MovementService {
     try {
       final movement = await _repository.findById(id);
       if (movement == null) return const Failure(_notFoundError);
-      return Success(_toItem(movement));
+      return Success(toMovementItem(movement));
     } on Object catch (e) {
       return Failure(await _storageFailure(e, writing: false));
     }
@@ -396,18 +396,6 @@ class MovementService {
       updatedAt: now,
     );
   }
-
-  MovementItem _toItem(Movement m) => MovementItem(
-        id: m.id!,
-        type: m.type,
-        amountCents: m.amountCents,
-        date: m.date,
-        categoryId: m.categoryId,
-        categoryName: m.categoryName ?? '',
-        paymentMethod: PaymentMethod.fromValue(m.paymentMethod),
-        description: m.description,
-        note: m.note,
-      );
 }
 
 /// Convierte un monto ya validado por [validateAmount] a centavos, con
@@ -430,3 +418,17 @@ String? _clean(String? text) {
   final trimmed = text?.trim();
   return (trimmed == null || trimmed.isEmpty) ? null : trimmed;
 }
+
+/// Convierte un registro de la base en un elemento de la lista (también
+/// lo usa M-06 para los resultados filtrados).
+MovementItem toMovementItem(Movement m) => MovementItem(
+      id: m.id!,
+      type: m.type,
+      amountCents: m.amountCents,
+      date: m.date,
+      categoryId: m.categoryId,
+      categoryName: m.categoryName ?? '',
+      paymentMethod: PaymentMethod.fromValue(m.paymentMethod),
+      description: m.description,
+      note: m.note,
+    );

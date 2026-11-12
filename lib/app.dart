@@ -12,6 +12,7 @@ import 'modules/movements/movement_service.dart';
 import 'modules/privacy/onboarding_service.dart';
 import 'modules/receipts/camera_service.dart';
 import 'modules/receipts/receipt_service.dart';
+import 'modules/search/movement_filter.dart';
 import 'modules/summary/summary_service.dart';
 import 'ui/screens/home_screen.dart';
 import 'ui/screens/onboarding_screen.dart';
@@ -48,6 +49,7 @@ class SpendyApp extends StatelessWidget {
     this.onboarding,
     this.summary,
     this.exports,
+    this.filter,
   });
 
   final MovementService service;
@@ -59,6 +61,7 @@ class SpendyApp extends StatelessWidget {
   final OnboardingService? onboarding;
   final SummaryService? summary;
   final ExportService? exports;
+  final MovementFilter? filter;
 
   Widget _home() => HomeScreen(
         service: service,
@@ -67,6 +70,7 @@ class SpendyApp extends StatelessWidget {
         camera: camera,
         summary: summary,
         exports: exports,
+        filter: filter,
       );
 
   @override

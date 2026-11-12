@@ -25,6 +25,7 @@ import 'modules/ocr/ocr_service.dart';
 import 'modules/privacy/onboarding_service.dart';
 import 'modules/receipts/camera_service.dart';
 import 'modules/receipts/receipt_service.dart';
+import 'modules/search/movement_filter.dart';
 import 'modules/summary/summary_service.dart';
 
 /// `errores.log` en el almacenamiento privado de la app (RNF-20).
@@ -77,6 +78,7 @@ Future<void> main() async {
         camera: CameraService(const PluginCameraDevice(), logger),
         onboarding: OnboardingService(SettingsRepository(db), logger),
         summary: SummaryService(repository: movements, logger: logger),
+        filter: MovementFilter(repository: movements, logger: logger),
         exports: ExportService(
           directory: getTemporaryDirectory,
           logger: logger,

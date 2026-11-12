@@ -11,6 +11,7 @@ import '../../modules/export/export_service.dart';
 import '../../modules/movements/movement_service.dart';
 import '../../modules/receipts/camera_service.dart';
 import '../../modules/receipts/receipt_service.dart';
+import '../../modules/search/movement_filter.dart';
 import '../../modules/summary/summary_service.dart';
 import 'movement_list_screen.dart';
 import 'summary_screen.dart';
@@ -27,6 +28,7 @@ class HomeScreen extends StatefulWidget {
     this.camera,
     this.summary,
     this.exports,
+    this.filter,
   });
 
   final MovementService service;
@@ -37,6 +39,9 @@ class HomeScreen extends StatefulWidget {
   /// Resumen anual y exportación (incremento 5).
   final SummaryService? summary;
   final ExportService? exports;
+
+  /// Búsqueda y filtros (incremento 6).
+  final MovementFilter? filter;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -95,6 +100,7 @@ class _HomeScreenState extends State<HomeScreen> {
       onChanged: _loadBalance,
       receipts: widget.receipts,
       camera: widget.camera,
+      filter: widget.filter,
     );
   }
 }

@@ -65,6 +65,15 @@ class FakeMovementRepository implements MovementRepository {
       insert(movement);
 
   @override
+  Future<List<Movement>> queryFilteredMovements({
+    String? startDate,
+    String? endDate,
+    int? categoryId,
+    String? type,
+  }) async =>
+      fetchAll();
+
+  @override
   Future<List<int>> getYearsWithMovements() async => const [];
 
   @override
