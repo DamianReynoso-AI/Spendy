@@ -30,6 +30,9 @@ enum ErrorType {
   /// servicio o tiempo agotado (RF-30).
   ocr('ocr'),
 
+  /// Falló la exportación del resumen a CSV o PDF (RF-44).
+  export('exportacion'),
+
   /// Cualquier otro fallo no previsto.
   unexpected('inesperado');
 

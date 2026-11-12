@@ -62,6 +62,14 @@ class MemoryMovementRepository implements MovementRepository {
       insert(movement);
 
   @override
+  Future<List<int>> getYearsWithMovements() async =>
+      ({for (final m in rows) m.date.year}.toList()..sort()).reversed.toList();
+
+  @override
+  Future<List<Movement>> getMovementsByYear(int year) async =>
+      rows.where((m) => m.date.year == year).toList();
+
+  @override
   Future<List<Movement>> fetchAll() async => rows.reversed.toList();
 
   @override

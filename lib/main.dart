@@ -15,13 +15,17 @@ import 'data/image_store.dart';
 import 'data/repositories/category_repository.dart';
 import 'data/repositories/movement_repository.dart';
 import 'data/repositories/receipt_repository.dart';
+import 'data/repositories/settings_repository.dart';
 import 'modules/categories/category_catalog.dart';
+import 'modules/export/export_service.dart';
 import 'modules/movements/movement_service.dart';
 import 'modules/ocr/cloud_ocr_adapter.dart';
 import 'modules/ocr/ocr_adapter.dart';
 import 'modules/ocr/ocr_service.dart';
+import 'modules/privacy/onboarding_service.dart';
 import 'modules/receipts/camera_service.dart';
 import 'modules/receipts/receipt_service.dart';
+import 'modules/summary/summary_service.dart';
 
 /// `errores.log` en el almacenamiento privado de la app (RNF-20).
 Future<File> _logFile() async {
@@ -59,8 +63,9 @@ Future<void> main() async {
     // Limpia capturas temporales y recibos sin registro (TEC-06, RNF-21).
     await receipts.cleanOrphans();
     final catalog = CategoryCatalog(CategoryRepository(db), logger);
+    final movements = MovementRepository(db, imageStore: store);
     final service = MovementService(
-      repository: MovementRepository(db, imageStore: store),
+      repository: movements,
       catalog: catalog,
       logger: logger,
     );
@@ -70,6 +75,12 @@ Future<void> main() async {
         catalog: catalog,
         receipts: receipts,
         camera: CameraService(const PluginCameraDevice(), logger),
+        onboarding: OnboardingService(SettingsRepository(db), logger),
+        summary: SummaryService(repository: movements, logger: logger),
+        exports: ExportService(
+          directory: getTemporaryDirectory,
+          logger: logger,
+        ),
       ),
     );
   } on Object catch (e) {

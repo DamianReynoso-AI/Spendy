@@ -7,10 +7,13 @@ library;
 import 'package:flutter/material.dart';
 
 import '../../modules/categories/category_catalog.dart';
+import '../../modules/export/export_service.dart';
 import '../../modules/movements/movement_service.dart';
 import '../../modules/receipts/camera_service.dart';
 import '../../modules/receipts/receipt_service.dart';
+import '../../modules/summary/summary_service.dart';
 import 'movement_list_screen.dart';
+import 'summary_screen.dart';
 
 /// Pantalla principal. El balance se vuelve a calcular cada vez que la
 /// lista avisa que se creó, editó o eliminó un movimiento (CA-001, CA-007,
@@ -22,12 +25,18 @@ class HomeScreen extends StatefulWidget {
     required this.catalog,
     this.receipts,
     this.camera,
+    this.summary,
+    this.exports,
   });
 
   final MovementService service;
   final CategoryCatalog catalog;
   final ReceiptService? receipts;
   final CameraService? camera;
+
+  /// Resumen anual y exportación (incremento 5).
+  final SummaryService? summary;
+  final ExportService? exports;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -57,9 +66,29 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  void _openSummary() {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => SummaryScreen(
+          summary: widget.summary!,
+          exports: widget.exports!,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final hasSummary = widget.summary != null && widget.exports != null;
     return MovementListScreen(
+      actions: [
+        if (hasSummary)
+          IconButton(
+            onPressed: _openSummary,
+            icon: const Icon(Icons.summarize_outlined),
+            tooltip: 'Resumen anual',
+          ),
+      ],
       service: widget.service,
       catalog: widget.catalog,
       header: BalanceCard(balance: _balance, error: _error),

@@ -65,6 +65,12 @@ class FakeMovementRepository implements MovementRepository {
       insert(movement);
 
   @override
+  Future<List<int>> getYearsWithMovements() async => const [];
+
+  @override
+  Future<List<Movement>> getMovementsByYear(int year) async => const [];
+
+  @override
   Future<List<Movement>> fetchAll() async {
     final error = fetchError;
     if (error != null) throw error;

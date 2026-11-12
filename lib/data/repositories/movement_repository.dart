@@ -46,8 +46,9 @@ JOIN categoria c ON c.id = m.categoria_id''';
   /// Lista completa (RF-07).
   static const String listSql = '$_selectSql\n$_orderSql';
 
-  /// Movimientos de un mes calendario. Compara textos "AAAA-MM-DD", así que
-  /// usa el índice `idx_movimiento_fecha` (RF-10, RNF-08).
+  /// Movimientos entre dos fechas "AAAA-MM-DD" (un mes o un año). Compara
+  /// textos, así que usa el índice `idx_movimiento_fecha` (RF-10, RNF-08,
+  /// RNF-10).
   static const String monthSql =
       '$_selectSql\nWHERE m.fecha >= ? AND m.fecha <= ?\n$_orderSql';
 
@@ -144,6 +145,27 @@ JOIN categoria c ON c.id = m.categoria_id''';
     final store = _store;
     if (path != null && store != null) await store.deleteRelative(path);
     return deleted;
+  }
+
+  /// Años distintos que tienen movimientos, del más reciente al más
+  /// antiguo (RF-36).
+  static const String yearsSql =
+      'SELECT DISTINCT substr(fecha, 1, 4) AS anio FROM movimiento '
+      'ORDER BY anio DESC';
+
+  /// Años con movimientos registrados, de mayor a menor (RF-36).
+  Future<List<int>> getYearsWithMovements() async {
+    final rows = await _db.rawQuery(yearsSql);
+    return [for (final row in rows) int.parse(row['anio'] as String)];
+  }
+
+  /// Movimientos con fecha entre "AAAA-01-01" y "AAAA-12-31". Compara
+  /// textos, así que usa el índice `idx_movimiento_fecha` (CA-101,
+  /// RNF-10).
+  Future<List<Movement>> getMovementsByYear(int year) async {
+    final y = year.toString().padLeft(4, '0');
+    final rows = await _db.rawQuery(monthSql, ['$y-01-01', '$y-12-31']);
+    return rows.map(Movement.fromRow).toList(growable: false);
   }
 
   /// Movimientos con fecha dentro del mes calendario [year]-[month]

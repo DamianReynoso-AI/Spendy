@@ -43,6 +43,7 @@ class MovementListScreen extends StatefulWidget {
     this.onChanged,
     this.receipts,
     this.camera,
+    this.actions = const [],
   });
 
   final MovementService service;
@@ -53,6 +54,9 @@ class MovementListScreen extends StatefulWidget {
   /// Recibos y cámara (M-04), para el formulario y el detalle.
   final ReceiptService? receipts;
   final CameraService? camera;
+
+  /// Botones extra de la barra superior (por ejemplo, "Resumen anual").
+  final List<Widget> actions;
 
   @override
   State<MovementListScreen> createState() => _MovementListScreenState();
@@ -190,6 +194,7 @@ class _MovementListScreenState extends State<MovementListScreen> {
               icon: const Icon(Icons.document_scanner_outlined),
               tooltip: 'Escanear recibo',
             ),
+          ...widget.actions,
         ],
       ),
       body: SafeArea(child: _body()),

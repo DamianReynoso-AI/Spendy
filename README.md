@@ -8,12 +8,15 @@ App móvil en Flutter para registrar ingresos, egresos y comprobantes fiscales.
 |---|---|---|
 | M-12 Configuración y formato | `lib/config/`, `lib/core/formatters.dart`, `lib/core/validators.dart` | Implementado con pruebas unitarias |
 | M-13 Errores y bitácora | `lib/core/result.dart`, `lib/core/error_logger.dart` | Incremento 1 (v0.1.0) |
-| M-11 Persistencia (SQLite) | `lib/data/` | Incremento 1: base v1, categorías, crear y listar movimientos. Incremento 2 (v0.2.0): editar, eliminar y consulta por mes. Incremento 3: `image_store.dart` (imágenes privadas, `.nomedia`, espacio libre, limpieza de huérfanos), `receipt_repository.dart` y guardado atómico egreso + recibo |
+| M-11 Persistencia (SQLite) | `lib/data/` | Incremento 1: base v1, categorías, crear y listar movimientos. Incremento 2 (v0.2.0): editar, eliminar y consulta por mes. Incremento 3: `image_store.dart` (imágenes privadas, `.nomedia`, espacio libre, limpieza de huérfanos), `receipt_repository.dart` y guardado atómico egreso + recibo. Incremento 5: `settings_repository.dart` y consultas anuales |
 | M-03 Categorías | `lib/modules/categories/` | Incremento 1 |
 | M-02 Movimientos | `lib/modules/movements/` | Incremento 1: validar, crear y listar. Incremento 2: editar, eliminar sin dobles bajas y balance del mes (`balance_calculator.dart`) |
 | M-04 Recibos y cámara | `lib/modules/receipts/` | Incremento 3 (v0.3.0): permiso de cámara, captura, compresión a 1.5 MB o menos, vincular, reemplazar, quitar y descartar recibos |
 | M-05 Lectura OCR | `lib/modules/ocr/` | Incremento 4 (v0.4.0): adaptador `OcrAdapter` (nube por HTTPS y simulado), intérprete y validador de comercio, fecha y total, orquestador con límite de 10 s y cancelación |
-| M-01 Interfaz | `lib/app.dart`, `lib/ui/` | Incremento 1: formulario de captura y lista. Incremento 2: pantalla principal con balance del mes, detalle, edición y confirmación de borrado. Incremento 3: pantalla de escaneo con vista previa, foto adjunta en el formulario y recibo con zoom en el detalle. Incremento 4: botón "Escanear recibo" en la lista, progreso con "Cancelar", diálogos de error e imagen ilegible y pantalla de revisión (`ocr_review_screen.dart`) |
+| M-07 Resumen anual | `lib/modules/summary/` | Incremento 5 (v0.5.0): selector de años, totales del año y gastos por categoría en centavos; cálculo puro sin Flutter |
+| M-08 Exportación | `lib/modules/export/` | Incremento 5: CSV (UTF-8 con BOM) y PDF estándar con los cuatro bloques, nombre `spendy_resumen_AAAA` y menú nativo de compartir |
+| M-10 Aviso de privacidad | `lib/modules/privacy/`, `lib/config/privacy_texts.dart` | Incremento 5: pantalla obligatoria de primer inicio; la aceptación se guarda en `ajuste` |
+| M-01 Interfaz | `lib/app.dart`, `lib/ui/` | Incremento 1: formulario de captura y lista. Incremento 2: pantalla principal con balance del mes, detalle, edición y confirmación de borrado. Incremento 3: pantalla de escaneo con vista previa, foto adjunta en el formulario y recibo con zoom en el detalle. Incremento 4: botón "Escanear recibo" en la lista, progreso con "Cancelar", diálogos de error e imagen ilegible y pantalla de revisión (`ocr_review_screen.dart`). Incremento 5: aviso de privacidad al primer inicio (`onboarding_screen.dart`) y resumen anual con exportación (`summary_screen.dart`) |
 
 ## Permisos de cámara (incremento 3)
 
@@ -52,6 +55,10 @@ archivo local que está en `.gitignore`:
 echo '{"SPENDY_OCR_ENDPOINT": "https://...", "SPENDY_OCR_API_KEY": "..."}' > ocr.env.json
 flutter run --dart-define-from-file=ocr.env.json
 ```
+
+El nombre del proveedor que aparece en el aviso de privacidad se fija con
+`--dart-define=SPENDY_OCR_PROVIDER_NAME=...`; mientras no se defina, el aviso
+dice "un servicio externo de lectura de recibos (OCR)".
 
 Sin esa configuración la app funciona igual: al escanear avisa que la
 lectura no está disponible y abre el registro manual con la foto. Para
