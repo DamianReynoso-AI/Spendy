@@ -22,6 +22,8 @@ import 'package:spendy/data/repositories/movement_repository.dart';
 import 'package:spendy/data/repositories/receipt_repository.dart';
 import 'package:spendy/modules/categories/category_catalog.dart';
 import 'package:spendy/modules/movements/movement_service.dart';
+import 'package:spendy/modules/ocr/mock_ocr_adapter.dart';
+import 'package:spendy/modules/ocr/ocr_service.dart';
 import 'package:spendy/modules/receipts/camera_service.dart';
 import 'package:spendy/modules/receipts/receipt_service.dart';
 import 'package:sqflite/sqflite.dart' show Sqflite;
@@ -214,12 +216,13 @@ void main() {
     }
 
     Future<TempReceipt> acceptedPhoto() async {
-      final raw = (await receipts.storeCapture(await cameraFile())).valueOrNull!;
+      final raw =
+          (await receipts.storeCapture(await cameraFile())).valueOrNull!;
       return (await receipts.accept(raw)).valueOrNull!;
     }
 
-    Future<int> count(String table) async =>
-        Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM $table'))!;
+    Future<int> count(String table) async => Sqflite.firstIntValue(
+        await db.rawQuery('SELECT COUNT(*) FROM $table'))!;
 
     List<String> filesIn(Directory dir) => dir
         .listSync()
@@ -243,7 +246,8 @@ void main() {
     });
 
     test('CA-041: "Repetir" descarta la captura anterior', () async {
-      final raw = (await receipts.storeCapture(await cameraFile())).valueOrNull!;
+      final raw =
+          (await receipts.storeCapture(await cameraFile())).valueOrNull!;
       await receipts.discard(raw);
       expect(File(raw.path).existsSync(), isFalse);
     });
@@ -345,7 +349,8 @@ void main() {
 
     test('CA-053: agregar recibo a un egreso que no tenía', () async {
       final id = (await movements.save(expense())).valueOrNull!;
-      final raw = (await receipts.storeCapture(await cameraFile())).valueOrNull!;
+      final raw =
+          (await receipts.storeCapture(await cameraFile())).valueOrNull!;
       expect((await receipts.attach(id, raw)).isSuccess, isTrue);
       expect((await receipts.receiptOf(id)).valueOrNull!.exists, isTrue);
       expect(filesIn(store.tempDir), isEmpty);
@@ -355,8 +360,8 @@ void main() {
       final first = await acceptedPhoto();
       final id = (await movements.save(expense(), receipt: first)).valueOrNull!;
       final oldPath = (await receipts.receiptOf(id)).valueOrNull!.path;
-      expect((await receipts.attach(id, await acceptedPhoto())).isSuccess,
-          isTrue);
+      expect(
+          (await receipts.attach(id, await acceptedPhoto())).isSuccess, isTrue);
       final newPath = (await receipts.receiptOf(id)).valueOrNull!.path;
       expect(newPath, isNot(oldPath));
       expect(File(oldPath).existsSync(), isFalse);
@@ -408,6 +413,28 @@ void main() {
       expect(await receipts.cleanOrphans(), 0);
     });
 
+    test('RF-23 / RNF-17: startReading envía solo los bytes de la foto',
+        () async {
+      final mock = MockOcrAdapter(text: 'OXXO\nTOTAL 10.00');
+      final reader = ReceiptService(
+        store: store,
+        repository: ReceiptRepository(db, store),
+        logger: logger,
+        ocr: OcrService(adapter: mock, logger: logger),
+      );
+      expect(receipts.canRead, isFalse);
+      expect(reader.canRead, isTrue);
+      final photo = await acceptedPhoto();
+      final request = (await reader.startReading(photo)).valueOrNull!;
+      expect(await request.result, isA<OcrRead>());
+      expect(mock.received.single, File(photo.path).readAsBytesSync());
+
+      File(photo.path).deleteSync();
+      final missing = await reader.startReading(photo);
+      expect(missing.errorOrNull!.message, ReceiptMessages.processFailed);
+      expect(() => receipts.startReading(photo), throwsStateError);
+    });
+
     test('TEC-06: cleanOrphans conserva solo los recibos registrados',
         () async {
       final id =
@@ -455,7 +482,8 @@ void main() {
       expect(logFile.readAsStringSync(), contains('camara'));
     });
 
-    test('CA-047 / CA-048: cámara ocupada da mensaje no técnico y se '
+    test(
+        'CA-047 / CA-048: cámara ocupada da mensaje no técnico y se '
         'registra solo el tipo de la excepción (RNF-20)', () async {
       device.openError = CameraBusyException();
       final result = await camera.open();
@@ -471,7 +499,8 @@ void main() {
       final handle = (await camera.open()).valueOrNull! as FakeHandle;
       expect((await camera.capture(handle)).valueOrNull, '/tmp/captura.jpg');
       handle.captureError = CameraBusyException();
-      expect((await camera.capture(handle)).errorOrNull!.type, ErrorType.camera);
+      expect(
+          (await camera.capture(handle)).errorOrNull!.type, ErrorType.camera);
       await camera.close(handle);
       expect(handle.disposed, isTrue);
       expect(await camera.openSettings(), isTrue);

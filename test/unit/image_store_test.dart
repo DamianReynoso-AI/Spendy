@@ -87,8 +87,7 @@ void main() {
     expect(p.dirname(copy.path), store.tempDir.path);
   });
 
-  test('promote mueve a recibos y resolve devuelve la ruta absoluta',
-      () async {
+  test('promote mueve a recibos y resolve devuelve la ruta absoluta', () async {
     final temp = await store.writeTemp(Uint8List.fromList([7]));
     final relative = store.finalPathFor(temp);
     final moved = await store.promote(temp);

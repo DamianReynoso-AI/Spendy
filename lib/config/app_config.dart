@@ -33,4 +33,12 @@ class AppConfig {
   /// Espacio libre extra que se pide antes de escribir una imagen, para no
   /// dejar el teléfono sin espacio (RF-22).
   static const int freeSpaceMarginBytes = 1048576;
+
+  /// Tiempo máximo de espera de la lectura OCR: 10 segundos exactos
+  /// (RF-30, RNF-26).
+  static const Duration ocrTimeout = Duration(seconds: 10);
+
+  /// Meta de tiempo de la lectura OCR en al menos el 90 % de los intentos
+  /// (RNF-13, CA-065).
+  static const Duration ocrTargetTime = Duration(seconds: 8);
 }

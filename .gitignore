@@ -42,3 +42,6 @@ tmp/
 
 # Python
 __pycache__/
+
+# Configuración local del OCR (RNF-18)
+ocr.env.json

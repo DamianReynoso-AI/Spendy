@@ -27,6 +27,25 @@ import '../widgets/amount_field.dart';
 import '../widgets/confirm_dialog.dart';
 import 'scan_screen.dart';
 
+/// Valores iniciales de un registro nuevo, por ejemplo los leídos por OCR
+/// (RF-24). [hints] resalta campos con un aviso, como un campo que no se
+/// pudo leer (CA-063).
+class MovementPrefill {
+  const MovementPrefill({
+    this.amountText,
+    this.date,
+    this.description,
+    this.hints = const {},
+  });
+
+  final String? amountText;
+  final DateTime? date;
+  final String? description;
+
+  /// Aviso por campo; las llaves son las de [MovementFields].
+  final Map<String, String> hints;
+}
+
 /// Pantalla de captura. Al guardar con éxito regresa `true`.
 ///
 /// Con [movement] abre en modo edición (RF-08): los campos vienen
@@ -43,6 +62,10 @@ class MovementFormScreen extends StatefulWidget {
     this.clock,
     this.receipts,
     this.camera,
+    this.initialReceipt,
+    this.prefill,
+    this.title,
+    this.introText,
   });
 
   final MovementService service;
@@ -60,6 +83,19 @@ class MovementFormScreen extends StatefulWidget {
   final ReceiptService? receipts;
   final CameraService? camera;
 
+  /// Foto ya tomada que llega adjunta (por ejemplo, tras cancelar la
+  /// lectura OCR, CA-080).
+  final TempReceipt? initialReceipt;
+
+  /// Valores iniciales de un registro nuevo (revisión OCR, RF-24).
+  final MovementPrefill? prefill;
+
+  /// Título de la pantalla; por defecto, "Registrar egreso" o similar.
+  final String? title;
+
+  /// Texto informativo arriba del formulario.
+  final String? introText;
+
   @override
   State<MovementFormScreen> createState() => _MovementFormScreenState();
 }
@@ -67,14 +103,17 @@ class MovementFormScreen extends StatefulWidget {
 class _MovementFormScreenState extends State<MovementFormScreen> {
   late final MovementItem? _original = widget.movement;
   late final _amount = TextEditingController(
-    text: _original == null ? '' : centsToAmountText(_original.amountCents),
+    text: _original == null
+        ? (widget.prefill?.amountText ?? '')
+        : centsToAmountText(_original.amountCents),
   );
-  late final _description =
-      TextEditingController(text: _original?.description ?? '');
+  late final _description = TextEditingController(
+    text: _original?.description ?? widget.prefill?.description ?? '',
+  );
   late final _note = TextEditingController(text: _original?.note ?? '');
 
   late MovementType _type = _original?.type ?? widget.initialType;
-  late DateTime _date = _original?.date ?? _today();
+  late DateTime _date = _original?.date ?? widget.prefill?.date ?? _today();
   late int? _categoryId = _original?.categoryId;
   late PaymentMethod? _paymentMethod = _original?.paymentMethod;
 
@@ -82,13 +121,13 @@ class _MovementFormScreenState extends State<MovementFormScreen> {
   bool _loadingCategories = true;
   String? _categoriesError;
 
-  Map<String, String> _fieldErrors = const {};
+  late Map<String, String> _fieldErrors = widget.prefill?.hints ?? const {};
   String? _message;
   bool _canRetry = false;
   bool _saving = false;
 
   /// Foto del recibo adjunta y aún sin guardar (vive en `temp_recibos/`).
-  TempReceipt? _receipt;
+  late TempReceipt? _receipt = widget.initialReceipt;
 
   /// `true` cuando ya se guardó: salir no pide confirmación.
   bool _saved = false;
@@ -237,13 +276,13 @@ class _MovementFormScreenState extends State<MovementFormScreen> {
     final receipts = widget.receipts;
     final camera = widget.camera;
     if (receipts == null || camera == null) return;
-    final photo = await Navigator.of(context).push<TempReceipt>(
+    final outcome = await Navigator.of(context).push<ScanOutcome>(
       MaterialPageRoute(
         builder: (_) => ScanScreen(camera: camera, receipts: receipts),
       ),
     );
-    if (photo == null || !mounted) return;
-    setState(() => _receipt = photo);
+    if (outcome == null || !mounted) return;
+    setState(() => _receipt = outcome.photo);
   }
 
   Future<void> _removePhoto() async {
@@ -291,6 +330,10 @@ class _MovementFormScreenState extends State<MovementFormScreen> {
 
   List<Widget> _formFields() {
     return [
+      if (widget.introText case final intro?) ...[
+        _InfoBanner(text: intro),
+        const SizedBox(height: 16),
+      ],
       _typeSelector(),
       const SizedBox(height: 16),
       if (_message != null) ...[_messageBanner(), const SizedBox(height: 16)],
@@ -364,6 +407,7 @@ class _MovementFormScreenState extends State<MovementFormScreen> {
   }
 
   String _title() {
+    if (widget.title case final title?) return title;
     final action = _isEditing ? 'Editar' : 'Registrar';
     return '$action ${_isExpense ? 'egreso' : 'ingreso'}';
   }
@@ -568,6 +612,38 @@ class _MovementFormScreenState extends State<MovementFormScreen> {
       onPressed: _saving ? null : _save,
       style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
       child: Text(_saving ? 'Guardando…' : 'Guardar'),
+    );
+  }
+}
+
+/// Aviso informativo (no es error) arriba del formulario.
+class _InfoBanner extends StatelessWidget {
+  const _InfoBanner({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colors.secondaryContainer,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline, color: colors.onSecondaryContainer),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(color: colors.onSecondaryContainer),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

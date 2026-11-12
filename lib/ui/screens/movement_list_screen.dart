@@ -12,6 +12,8 @@ import '../../modules/receipts/camera_service.dart';
 import '../../modules/receipts/receipt_service.dart';
 import 'movement_detail_screen.dart';
 import 'movement_form_screen.dart';
+import 'ocr_review_screen.dart';
+import 'scan_screen.dart';
 
 /// Colores de ingreso y egreso. Ambos tienen contraste mayor a 4.5:1 sobre
 /// fondo blanco (RNF-06), y además se distinguen por ícono, signo y texto,
@@ -119,6 +121,53 @@ class _MovementListScreenState extends State<MovementListScreen> {
     await _refresh();
   }
 
+  bool get _canScan => widget.receipts != null && widget.camera != null;
+
+  /// "Escanear recibo": cámara, lectura OCR y revisión (RF-23 a RF-26). Si
+  /// no se leyó (cancelar, error o ilegible) se abre el registro manual con
+  /// la foto adjunta (CA-075, CA-077 a CA-080).
+  Future<void> _scanReceipt() async {
+    final receipts = widget.receipts!;
+    final camera = widget.camera!;
+    final outcome = await Navigator.of(context).push<ScanOutcome>(
+      MaterialPageRoute(
+        builder: (_) => ScanScreen(
+          camera: camera,
+          receipts: receipts,
+          readReceipt: true,
+        ),
+      ),
+    );
+    if (outcome == null || !mounted) return;
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => _afterScan(outcome)),
+    );
+    if (saved != true || !mounted) return;
+    _showMessage('Movimiento guardado.');
+    await _refresh();
+  }
+
+  Widget _afterScan(ScanOutcome outcome) {
+    final reading = outcome.reading;
+    if (reading != null) {
+      return OcrReviewScreen(
+        service: widget.service,
+        catalog: widget.catalog,
+        receipts: widget.receipts,
+        camera: widget.camera,
+        photo: outcome.photo,
+        reading: reading,
+      );
+    }
+    return MovementFormScreen(
+      service: widget.service,
+      catalog: widget.catalog,
+      receipts: widget.receipts,
+      camera: widget.camera,
+      initialReceipt: outcome.photo,
+    );
+  }
+
   Future<void> _refresh() async {
     widget.onChanged?.call();
     await _load();
@@ -132,7 +181,17 @@ class _MovementListScreenState extends State<MovementListScreen> {
   Widget build(BuildContext context) {
     final showFab = !_loading && _error == null && _items.isNotEmpty;
     return Scaffold(
-      appBar: AppBar(title: const Text('Movimientos')),
+      appBar: AppBar(
+        title: const Text('Movimientos'),
+        actions: [
+          if (_canScan)
+            IconButton(
+              onPressed: _scanReceipt,
+              icon: const Icon(Icons.document_scanner_outlined),
+              tooltip: 'Escanear recibo',
+            ),
+        ],
+      ),
       body: SafeArea(child: _body()),
       floatingActionButton: showFab
           ? FloatingActionButton.extended(

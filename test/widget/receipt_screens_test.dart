@@ -2,6 +2,7 @@
 // permiso negado, fallo de cámara, vista previa, descarte al salir y
 // recibo en el detalle. CA-040, CA-041, CA-044 a CA-051, CA-053 a CA-058.
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,6 +11,7 @@ import 'package:spendy/core/error_logger.dart';
 import 'package:spendy/core/result.dart';
 import 'package:spendy/modules/categories/category_catalog.dart';
 import 'package:spendy/modules/movements/movement_service.dart';
+import 'package:spendy/modules/ocr/ocr_service.dart';
 import 'package:spendy/modules/receipts/camera_service.dart';
 import 'package:spendy/modules/receipts/receipt_service.dart';
 import 'package:spendy/ui/screens/movement_detail_screen.dart';
@@ -58,6 +60,16 @@ class FakeReceipts implements ReceiptService {
   ReceiptView? view;
   int captures = 0;
 
+  /// Lectura OCR conectada (incremento 4); `null` = sin OCR.
+  OcrService? ocr;
+
+  @override
+  bool get canRead => ocr != null;
+
+  @override
+  Future<Result<OcrRequest>> startReading(TempReceipt photo) async =>
+      Success(ocr!.start(Uint8List.fromList([1, 2, 3])));
+
   @override
   Future<Result<TempReceipt>> storeCapture(String capturedPath) async =>
       Success(
@@ -82,8 +94,7 @@ class FakeReceipts implements ReceiptService {
   Future<void> discard(TempReceipt temp) async => discarded.add(temp.path);
 
   @override
-  Future<Result<ReceiptView?>> receiptOf(int movementId) async =>
-      Success(view);
+  Future<Result<ReceiptView?>> receiptOf(int movementId) async => Success(view);
 
   @override
   Future<Result<void>> attach(int movementId, TempReceipt temp) async {
@@ -162,7 +173,8 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('CA-044 a CA-046: permiso negado explica, ofrece Ajustes y '
+  testWidgets(
+      'CA-044 a CA-046: permiso negado explica, ofrece Ajustes y '
       'registro manual', (tester) async {
     device.permission = CameraPermissionState.permanentlyDenied;
     await pumpApp(tester);
@@ -209,7 +221,8 @@ void main() {
     expect(find.text('350'), findsOneWidget);
   });
 
-  testWidgets('CA-040 / CA-041: vista previa, Repetir descarta y Usar foto '
+  testWidgets(
+      'CA-040 / CA-041: vista previa, Repetir descarta y Usar foto '
       'adjunta; se guarda con el recibo', (tester) async {
     await pumpApp(tester);
     await openFormWithAmount(tester);
@@ -232,7 +245,8 @@ void main() {
     expect(receipts.discarded, hasLength(1));
   });
 
-  testWidgets('CA-056 a CA-058: salir con foto pregunta; Seguir editando no '
+  testWidgets(
+      'CA-056 a CA-058: salir con foto pregunta; Seguir editando no '
       'cambia nada y Descartar borra la foto', (tester) async {
     await pumpApp(tester);
     await openFormWithAmount(tester);

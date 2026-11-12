@@ -101,15 +101,16 @@ class _MovementDetailScreenState extends State<MovementDetailScreen> {
     );
   }
 
-  Future<TempReceipt?> _takePhoto() {
+  Future<TempReceipt?> _takePhoto() async {
     final receipts = widget.receipts!;
     final camera = widget.camera;
-    if (camera == null) return Future.value();
-    return Navigator.of(context).push<TempReceipt>(
+    if (camera == null) return null;
+    final outcome = await Navigator.of(context).push<ScanOutcome>(
       MaterialPageRoute(
         builder: (_) => ScanScreen(camera: camera, receipts: receipts),
       ),
     );
+    return outcome?.photo;
   }
 
   /// "Quitar recibo" con confirmación modal (RF-20, CA-054).

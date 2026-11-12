@@ -17,6 +17,9 @@ import 'data/repositories/movement_repository.dart';
 import 'data/repositories/receipt_repository.dart';
 import 'modules/categories/category_catalog.dart';
 import 'modules/movements/movement_service.dart';
+import 'modules/ocr/cloud_ocr_adapter.dart';
+import 'modules/ocr/ocr_adapter.dart';
+import 'modules/ocr/ocr_service.dart';
 import 'modules/receipts/camera_service.dart';
 import 'modules/receipts/receipt_service.dart';
 
@@ -24,6 +27,20 @@ import 'modules/receipts/receipt_service.dart';
 Future<File> _logFile() async {
   final dir = await getApplicationSupportDirectory();
   return File(p.join(dir.path, errorLogFileName));
+}
+
+/// Proveedor de OCR leído de la configuración externa (RNF-18). Sin
+/// configuración, o con un endpoint que no es HTTPS (RNF-16), la lectura
+/// no está disponible y la persona registra a mano con la foto.
+OcrAdapter _ocrAdapter() {
+  try {
+    final config = CloudOcrConfig.fromEnvironment();
+    return config == null
+        ? const UnconfiguredOcrAdapter()
+        : CloudOcrAdapter(config);
+  } on ArgumentError {
+    return const UnconfiguredOcrAdapter();
+  }
 }
 
 Future<void> main() async {
@@ -37,6 +54,7 @@ Future<void> main() async {
       store: store,
       repository: ReceiptRepository(db, store),
       logger: logger,
+      ocr: OcrService(adapter: _ocrAdapter(), logger: logger),
     );
     // Limpia capturas temporales y recibos sin registro (TEC-06, RNF-21).
     await receipts.cleanOrphans();

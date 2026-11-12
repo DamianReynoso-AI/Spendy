@@ -12,7 +12,8 @@ App móvil en Flutter para registrar ingresos, egresos y comprobantes fiscales.
 | M-03 Categorías | `lib/modules/categories/` | Incremento 1 |
 | M-02 Movimientos | `lib/modules/movements/` | Incremento 1: validar, crear y listar. Incremento 2: editar, eliminar sin dobles bajas y balance del mes (`balance_calculator.dart`) |
 | M-04 Recibos y cámara | `lib/modules/receipts/` | Incremento 3 (v0.3.0): permiso de cámara, captura, compresión a 1.5 MB o menos, vincular, reemplazar, quitar y descartar recibos |
-| M-01 Interfaz | `lib/app.dart`, `lib/ui/` | Incremento 1: formulario de captura y lista. Incremento 2: pantalla principal con balance del mes, detalle, edición y confirmación de borrado. Incremento 3: pantalla de escaneo con vista previa, foto adjunta en el formulario y recibo con zoom en el detalle |
+| M-05 Lectura OCR | `lib/modules/ocr/` | Incremento 4 (v0.4.0): adaptador `OcrAdapter` (nube por HTTPS y simulado), intérprete y validador de comercio, fecha y total, orquestador con límite de 10 s y cancelación |
+| M-01 Interfaz | `lib/app.dart`, `lib/ui/` | Incremento 1: formulario de captura y lista. Incremento 2: pantalla principal con balance del mes, detalle, edición y confirmación de borrado. Incremento 3: pantalla de escaneo con vista previa, foto adjunta en el formulario y recibo con zoom en el detalle. Incremento 4: botón "Escanear recibo" en la lista, progreso con "Cancelar", diálogos de error e imagen ilegible y pantalla de revisión (`ocr_review_screen.dart`) |
 
 ## Permisos de cámara (incremento 3)
 
@@ -29,6 +30,36 @@ generarlas con `flutter create --platforms=android,ios .` hay que agregar:
 Las fotos se guardan en la carpeta privada de la app
 (`temp_recibos/` y `recibos/`, cada una con `.nomedia`), nunca en la galería.
 
+## Proveedor de OCR (incremento 4)
+
+El proveedor todavía no está definido (TEC-01, TEC-02). La app usa
+`CloudOcrAdapter`, que habla con cualquier servicio HTTPS que cumpla este
+contrato:
+
+```text
+POST <SPENDY_OCR_ENDPOINT>            (solo https://)
+Authorization: Bearer <SPENDY_OCR_API_KEY>
+Content-Type: image/jpeg
+<bytes de la foto comprimida>
+
+200 OK  {"text": "texto leído del recibo"}
+```
+
+La clave nunca va en el código (RNF-18). Se pasa al compilar desde un
+archivo local que está en `.gitignore`:
+
+```bash
+echo '{"SPENDY_OCR_ENDPOINT": "https://...", "SPENDY_OCR_API_KEY": "..."}' > ocr.env.json
+flutter run --dart-define-from-file=ocr.env.json
+```
+
+Sin esa configuración la app funciona igual: al escanear avisa que la
+lectura no está disponible y abre el registro manual con la foto. Para
+cambiar de proveedor basta con otra implementación de `OcrAdapter`
+(RNF-32). Las pruebas usan `MockOcrAdapter`; la prueba con los 30 recibos
+reales está en `test/integration/receipts_accuracy_test.dart` (ver
+`test/fixtures/receipts/README.md`).
+
 ## Revisión de calidad
 
 ```bash
@@ -43,7 +74,7 @@ analizador de métricas.
 ```bash
 flutter pub get
 flutter analyze
-flutter test            # unitarias (test/unit) y de pantallas (test/widget)
+flutter test            # unitarias (test/unit), de pantallas (test/widget) y de flujo (test/integration)
 flutter test --coverage # reporte en coverage/lcov.info
 ```
 

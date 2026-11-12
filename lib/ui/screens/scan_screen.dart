@@ -1,9 +1,11 @@
-/// M-01 · Cámara y vista previa del recibo (RF-15 a RF-18; CA-040 a
-/// CA-049).
+/// M-01 · Cámara, vista previa y lectura OCR del recibo (RF-15 a RF-18,
+/// RF-23, RF-29 a RF-31; CA-040 a CA-049, CA-064, CA-074 a CA-082,
+/// CA-145).
 ///
-/// Solo habla con M-04 ([CameraService] y [ReceiptService]); nunca con
-/// `lib/data/` (RNF-30). Regresa la foto ya comprimida ([TempReceipt]) al
-/// tocar "Usar foto", o `null` si la persona elige registrar a mano o sale.
+/// Solo habla con M-04 ([CameraService] y [ReceiptService]), que a su vez
+/// usa M-05; nunca con `lib/data/` (RNF-30). Regresa un [ScanOutcome] con
+/// la foto ya comprimida (y, si se leyó, los datos del recibo), o `null`
+/// si la persona registra a mano sin foto o sale.
 library;
 
 import 'dart:io';
@@ -11,17 +13,47 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../../core/result.dart';
+import '../../modules/ocr/ocr_service.dart';
 import '../../modules/receipts/camera_service.dart';
 import '../../modules/receipts/receipt_service.dart';
 
-enum _Phase { checking, denied, live, busy, preview, failed }
+enum _Phase {
+  checking,
+  denied,
+  live,
+  busy,
+  preview,
+  failed,
+  reading,
+  illegible,
+  readFailed,
+}
+
+/// Lo que regresa [ScanScreen].
+class ScanOutcome {
+  const ScanOutcome({required this.photo, this.reading});
+
+  /// Foto comprimida en `temp_recibos/`.
+  final TempReceipt photo;
+
+  /// Datos leídos por OCR; `null` si no se leyó (registro manual).
+  final ParsedReceipt? reading;
+}
 
 /// Pantalla de captura de un recibo.
 class ScanScreen extends StatefulWidget {
-  const ScanScreen({super.key, required this.camera, required this.receipts});
+  const ScanScreen({
+    super.key,
+    required this.camera,
+    required this.receipts,
+    this.readReceipt = false,
+  });
 
   final CameraService camera;
   final ReceiptService receipts;
+
+  /// `true` para leer el recibo con OCR al tocar "Usar foto" (RF-23).
+  final bool readReceipt;
 
   @override
   State<ScanScreen> createState() => _ScanScreenState();
@@ -35,8 +67,12 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
   String? _error;
   String _busyText = 'Abriendo la cámara…';
 
-  /// `true` cuando la foto se entregó con "Usar foto": ya no se borra.
+  /// `true` cuando la foto se entregó: ya no se borra al salir.
   bool _delivered = false;
+
+  /// Foto ya comprimida mientras se lee o si la lectura falló.
+  TempReceipt? _photo;
+  OcrRequest? _request;
 
   @override
   void initState() {
@@ -50,8 +86,12 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     final handle = _handle;
     if (handle != null) widget.camera.close(handle);
-    final capture = _capture;
-    if (capture != null && !_delivered) widget.receipts.discard(capture);
+    _request?.cancel();
+    if (!_delivered) {
+      for (final temp in [_capture, _photo]) {
+        if (temp != null) widget.receipts.discard(temp);
+      }
+    }
     super.dispose();
   }
 
@@ -152,21 +192,82 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
     _setBusy('Preparando la foto…');
     final accepted = await widget.receipts.accept(capture);
     if (!mounted) return;
+    _capture = null;
     switch (accepted) {
       case Success(:final value):
-        _capture = value;
-        _delivered = true;
-        Navigator.of(context).pop(value);
+        _photo = value;
+        if (widget.readReceipt && widget.receipts.canRead) {
+          await _read();
+        } else {
+          _deliver();
+        }
       case Failure(:final error):
-        _capture = null;
         await widget.receipts.discard(capture);
         if (mounted) _showFailure(error);
     }
   }
 
-  /// "Registrar manualmente": regresa al formulario sin foto; lo que ya se
-  /// capturó en el formulario sigue ahí (CA-046, CA-049).
-  void _manual() => Navigator.of(context).pop();
+  /// Lee el recibo con indicador de progreso y botón "Cancelar" (RF-23,
+  /// CA-064). "Reintentar" vuelve a llamar aquí sin reiniciar la app
+  /// (CA-146).
+  Future<void> _read() async {
+    final photo = _photo!;
+    setState(() => _phase = _Phase.reading);
+    final started = await widget.receipts.startReading(photo);
+    if (!mounted) return;
+    if (started case Failure(:final error)) return _showReadFailure(error);
+    final request = started.valueOrNull!;
+    _request = request;
+    final outcome = await request.result;
+    if (!mounted || !identical(_request, request)) return;
+    _request = null;
+    switch (outcome) {
+      case OcrRead(:final receipt):
+        _deliver(reading: receipt);
+      case OcrIllegible():
+        setState(() => _phase = _Phase.illegible);
+      case OcrFailed(:final error):
+        _showReadFailure(error);
+      case OcrCancelled():
+        break; // Ya se navegó al formulario en _cancelReading.
+    }
+  }
+
+  void _showReadFailure(AppError error) => setState(() {
+        _error = error.message;
+        _phase = _Phase.readFailed;
+      });
+
+  /// "Cancelar": detiene la lectura y abre el registro manual con la foto;
+  /// una respuesta que llegue después se ignora (RF-31, CA-080 a CA-082).
+  void _cancelReading() {
+    _request?.cancel();
+    _request = null;
+    _deliver();
+  }
+
+  /// "Repetir foto" tras una imagen ilegible: descarta la foto y vuelve a
+  /// la cámara; al aceptar la nueva se vuelve a leer (CA-076).
+  Future<void> _retakeAfterRead() async {
+    final photo = _photo;
+    _photo = null;
+    if (photo != null) await widget.receipts.discard(photo);
+    if (!mounted) return;
+    await _openCamera();
+  }
+
+  /// Entrega la foto aceptada, con o sin datos leídos.
+  void _deliver({ParsedReceipt? reading}) {
+    final photo = _photo;
+    if (photo == null || _delivered) return;
+    _delivered = true;
+    Navigator.of(context).pop(ScanOutcome(photo: photo, reading: reading));
+  }
+
+  /// "Registrar manualmente": si ya hay foto aceptada se conserva (CA-075,
+  /// CA-077 a CA-079); si no, regresa sin foto y lo que ya se capturó en
+  /// el formulario sigue ahí (CA-046, CA-049).
+  void _manual() => _photo == null ? Navigator.of(context).pop() : _deliver();
 
   @override
   Widget build(BuildContext context) {
@@ -183,7 +284,50 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
         _Phase.failed => _failedView(),
         _Phase.live => _liveView(),
         _Phase.preview => _previewView(),
+        _Phase.reading => _readingView(),
+        _Phase.illegible => _illegibleView(),
+        _Phase.readFailed => _readFailedView(),
       };
+
+  Widget _readingView() => Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            const Text('Leyendo el recibo…', textAlign: TextAlign.center),
+            const SizedBox(height: 24),
+            OutlinedButton(
+              onPressed: _cancelReading,
+              style: OutlinedButton.styleFrom(minimumSize: const Size(160, 48)),
+              child: const Text('Cancelar'),
+            ),
+          ],
+        ),
+      );
+
+  /// Imagen ilegible (RF-29, CA-074 a CA-076).
+  Widget _illegibleView() => ScanMessageView(
+        icon: Icons.blur_on,
+        title: 'No se pudo leer el recibo',
+        text: OcrMessages.illegible,
+        actions: [
+          ScanAction('Repetir foto', _retakeAfterRead),
+          ScanAction('Registrar manualmente', _manual, primary: false),
+        ],
+      );
+
+  /// Sin internet, error del servicio o tiempo agotado (RF-30, CA-077 a
+  /// CA-079, CA-145).
+  Widget _readFailedView() => ScanMessageView(
+        icon: Icons.cloud_off_outlined,
+        title: 'No se pudo leer el recibo',
+        text: _error ?? OcrMessages.server,
+        actions: [
+          ScanAction('Reintentar', _read),
+          ScanAction('Registrar manualmente', _manual, primary: false),
+        ],
+      );
 
   Widget _progress(String text) => Center(
         child: Column(

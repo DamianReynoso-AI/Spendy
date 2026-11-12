@@ -26,6 +26,10 @@ enum ErrorType {
   /// La cámara falló, está ocupada o no existe (RF-17).
   camera('camara'),
 
+  /// Falló la lectura del recibo con OCR: sin internet, error del
+  /// servicio o tiempo agotado (RF-30).
+  ocr('ocr'),
+
   /// Cualquier otro fallo no previsto.
   unexpected('inesperado');
 

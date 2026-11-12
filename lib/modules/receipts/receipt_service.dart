@@ -2,6 +2,9 @@
 /// descarte (RF-18 a RF-22; RNF-12, RNF-14, RNF-21; CA-041, CA-043,
 /// CA-050 a CA-061).
 ///
+/// En el incremento 4 conecta la foto aceptada con la lectura OCR (M-05,
+/// RF-23).
+///
 /// Es lo único que la interfaz usa para recibos; las pantallas nunca
 /// importan `lib/data/` (RNF-30).
 library;
@@ -18,6 +21,7 @@ import '../../core/result.dart';
 import '../../data/image_store.dart';
 import '../../data/models/receipt.dart';
 import '../../data/repositories/receipt_repository.dart';
+import '../ocr/ocr_service.dart';
 
 /// Una foto que aún no se guarda con un egreso. Vive en `temp_recibos/`.
 class TempReceipt {
@@ -128,7 +132,9 @@ class ReceiptService {
     required ErrorLogger logger,
     ImageCompressor? compressor,
     DateTime Function()? clock,
-  })  : _store = store,
+    OcrService? ocr,
+  })  : _ocr = ocr,
+        _store = store,
         _repository = repository,
         _logger = logger,
         _compress = compressor ?? compressInBackground,
@@ -141,6 +147,29 @@ class ReceiptService {
   final ErrorLogger _logger;
   final ImageCompressor _compress;
   final DateTime Function() _clock;
+  final OcrService? _ocr;
+
+  /// `true` si hay lectura OCR conectada (incremento 4).
+  bool get canRead => _ocr != null;
+
+  /// Envía la foto ya aceptada (comprimida) a la lectura OCR y devuelve la
+  /// petición en curso, que se puede cancelar (RF-23, RF-31). Solo se
+  /// envía la imagen (RNF-17).
+  Future<Result<OcrRequest>> startReading(TempReceipt photo) async {
+    final ocr = _ocr;
+    if (ocr == null) throw StateError('ReceiptService sin OcrService');
+    try {
+      return Success(ocr.start(await File(photo.path).readAsBytes()));
+    } on Object catch (e) {
+      await _log(ErrorType.storageRead, e);
+      return const Failure(
+        AppError(
+          type: ErrorType.storageRead,
+          message: ReceiptMessages.processFailed,
+        ),
+      );
+    }
+  }
 
   /// Pasa la foto recién tomada a `temp_recibos/` para la vista previa
   /// (RF-18). Si no hay espacio, no queda nada a medias (CA-059).
