@@ -19,6 +19,13 @@ enum ErrorType {
   /// Falló la lectura de la base (lista de movimientos o categorías).
   storageRead('almacenamiento_lectura'),
 
+  /// La persona negó el permiso de cámara (RF-16). No es un fallo técnico
+  /// y no se escribe en la bitácora.
+  cameraPermission('permiso_camara'),
+
+  /// La cámara falló, está ocupada o no existe (RF-17).
+  camera('camara'),
+
   /// Cualquier otro fallo no previsto.
   unexpected('inesperado');
 

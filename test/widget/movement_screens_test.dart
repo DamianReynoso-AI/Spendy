@@ -11,6 +11,7 @@ import 'package:spendy/config/categories.dart';
 import 'package:spendy/core/error_logger.dart';
 import 'package:spendy/core/formatters.dart';
 import 'package:spendy/data/models/movement.dart';
+import 'package:spendy/data/models/receipt.dart';
 import 'package:spendy/data/repositories/category_repository.dart';
 import 'package:spendy/data/repositories/movement_repository.dart';
 import 'package:spendy/modules/categories/category_catalog.dart';
@@ -55,6 +56,10 @@ class MemoryMovementRepository implements MovementRepository {
     }));
     return rows.length;
   }
+
+  @override
+  Future<int> insertWithReceipt(Movement movement, PendingReceipt pending) =>
+      insert(movement);
 
   @override
   Future<List<Movement>> fetchAll() async => rows.reversed.toList();

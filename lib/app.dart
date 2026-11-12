@@ -7,6 +7,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'modules/categories/category_catalog.dart';
 import 'modules/movements/movement_service.dart';
+import 'modules/receipts/camera_service.dart';
+import 'modules/receipts/receipt_service.dart';
 import 'ui/screens/home_screen.dart';
 
 /// Idioma y región fijos: la app no cambia aunque el teléfono esté en
@@ -30,14 +32,28 @@ MaterialApp _materialApp(Widget home) => MaterialApp(
 
 /// App con sus servicios ya creados (los crea `main.dart`).
 class SpendyApp extends StatelessWidget {
-  const SpendyApp({super.key, required this.service, required this.catalog});
+  const SpendyApp({
+    super.key,
+    required this.service,
+    required this.catalog,
+    this.receipts,
+    this.camera,
+  });
 
   final MovementService service;
   final CategoryCatalog catalog;
+  final ReceiptService? receipts;
+  final CameraService? camera;
 
   @override
-  Widget build(BuildContext context) =>
-      _materialApp(HomeScreen(service: service, catalog: catalog));
+  Widget build(BuildContext context) => _materialApp(
+        HomeScreen(
+          service: service,
+          catalog: catalog,
+          receipts: receipts,
+          camera: camera,
+        ),
+      );
 }
 
 /// Se muestra si la base no se pudo abrir al iniciar.

@@ -8,16 +8,26 @@ import 'package:flutter/material.dart';
 
 import '../../modules/categories/category_catalog.dart';
 import '../../modules/movements/movement_service.dart';
+import '../../modules/receipts/camera_service.dart';
+import '../../modules/receipts/receipt_service.dart';
 import 'movement_list_screen.dart';
 
 /// Pantalla principal. El balance se vuelve a calcular cada vez que la
 /// lista avisa que se creó, editó o eliminó un movimiento (CA-001, CA-007,
 /// CA-016, CA-021).
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, required this.service, required this.catalog});
+  const HomeScreen({
+    super.key,
+    required this.service,
+    required this.catalog,
+    this.receipts,
+    this.camera,
+  });
 
   final MovementService service;
   final CategoryCatalog catalog;
+  final ReceiptService? receipts;
+  final CameraService? camera;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -54,6 +64,8 @@ class _HomeScreenState extends State<HomeScreen> {
       catalog: widget.catalog,
       header: BalanceCard(balance: _balance, error: _error),
       onChanged: _loadBalance,
+      receipts: widget.receipts,
+      camera: widget.camera,
     );
   }
 }

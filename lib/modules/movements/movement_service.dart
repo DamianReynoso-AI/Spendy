@@ -13,6 +13,7 @@ import '../../core/validators.dart';
 import '../../data/models/movement.dart';
 import '../../data/repositories/movement_repository.dart';
 import '../categories/category_catalog.dart';
+import '../receipts/receipt_service.dart';
 import 'balance_calculator.dart';
 
 export '../../config/categories.dart' show MovementType;
@@ -66,6 +67,10 @@ class MovementMessages {
   static const String notFound =
       'Este movimiento ya no existe. Regresa a la lista para ver tus '
       'movimientos actuales.';
+  static const String incomeNoReceipt =
+      'Los ingresos no llevan recibo. Quita la foto o cambia a egreso.';
+  static const String receiptDiscarded =
+      ' La foto del recibo se descartó; vuelve a escanearla.';
   static const String deleteFailed =
       'No se pudo eliminar el movimiento por un problema con el '
       'almacenamiento del teléfono. El movimiento sigue guardado; '
@@ -251,14 +256,31 @@ class MovementService {
   /// Valida y guarda. Devuelve el id nuevo, o un error con el mensaje para
   /// la persona. Si falla, no se guarda nada y el formulario conserva lo
   /// capturado (RF-05, RF-11).
-  Future<Result<int>> save(MovementDraft draft) async {
+  ///
+  /// Con [receipt] (ya comprimido) guarda el egreso y su recibo de forma
+  /// atómica (RNF-21): o se guardan los dos o ninguno. Si falla, M-11 borra
+  /// la imagen temporal (CA-060, CA-061) y el mensaje lo dice.
+  Future<Result<int>> save(MovementDraft draft, {TempReceipt? receipt}) async {
     final validation = await validate(draft);
     if (validation case Failure(:final error)) return Failure(error);
+    if (receipt != null && draft.type == MovementType.ingreso) {
+      return const Failure(_incomeReceiptError);
+    }
     final movement = _toMovement(draft);
     try {
-      return Success(await _repository.insert(movement));
+      final id = receipt == null
+          ? await _repository.insert(movement)
+          : await _repository.insertWithReceipt(movement, receipt.toPending());
+      return Success(id);
     } on Object catch (e) {
-      return Failure(await _storageFailure(e, writing: true));
+      final error = await _storageFailure(e, writing: true);
+      if (receipt == null) return Failure(error);
+      return Failure(
+        AppError(
+          type: error.type,
+          message: error.message + MovementMessages.receiptDiscarded,
+        ),
+      );
     }
   }
 
@@ -337,6 +359,11 @@ class MovementService {
       return Failure(await _storageFailure(e, writing: false));
     }
   }
+
+  static const AppError _incomeReceiptError = AppError(
+    type: ErrorType.validation,
+    message: MovementMessages.incomeNoReceipt,
+  );
 
   static const AppError _notFoundError = AppError(
     type: ErrorType.unexpected,

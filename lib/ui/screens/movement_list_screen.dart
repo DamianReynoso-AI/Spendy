@@ -8,6 +8,8 @@ import 'package:flutter/material.dart';
 
 import '../../modules/categories/category_catalog.dart';
 import '../../modules/movements/movement_service.dart';
+import '../../modules/receipts/camera_service.dart';
+import '../../modules/receipts/receipt_service.dart';
 import 'movement_detail_screen.dart';
 import 'movement_form_screen.dart';
 
@@ -37,12 +39,18 @@ class MovementListScreen extends StatefulWidget {
     required this.catalog,
     this.header,
     this.onChanged,
+    this.receipts,
+    this.camera,
   });
 
   final MovementService service;
   final CategoryCatalog catalog;
   final Widget? header;
   final VoidCallback? onChanged;
+
+  /// Recibos y cámara (M-04), para el formulario y el detalle.
+  final ReceiptService? receipts;
+  final CameraService? camera;
 
   @override
   State<MovementListScreen> createState() => _MovementListScreenState();
@@ -79,6 +87,8 @@ class _MovementListScreenState extends State<MovementListScreen> {
         builder: (_) => MovementFormScreen(
           service: widget.service,
           catalog: widget.catalog,
+          receipts: widget.receipts,
+          camera: widget.camera,
         ),
       ),
     );
@@ -97,6 +107,8 @@ class _MovementListScreenState extends State<MovementListScreen> {
           service: widget.service,
           catalog: widget.catalog,
           movement: item,
+          receipts: widget.receipts,
+          camera: widget.camera,
         ),
       ),
     );

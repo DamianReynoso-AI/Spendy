@@ -11,10 +11,14 @@ import 'package:path_provider/path_provider.dart';
 import 'app.dart';
 import 'core/error_logger.dart';
 import 'data/database.dart';
+import 'data/image_store.dart';
 import 'data/repositories/category_repository.dart';
 import 'data/repositories/movement_repository.dart';
+import 'data/repositories/receipt_repository.dart';
 import 'modules/categories/category_catalog.dart';
 import 'modules/movements/movement_service.dart';
+import 'modules/receipts/camera_service.dart';
+import 'modules/receipts/receipt_service.dart';
 
 /// `errores.log` en el almacenamiento privado de la app (RNF-20).
 Future<File> _logFile() async {
@@ -27,13 +31,29 @@ Future<void> main() async {
   final logger = ErrorLogger(_logFile);
   try {
     final db = await openSpendyDatabase();
+    final store = ImageStore(await getApplicationSupportDirectory());
+    await store.init();
+    final receipts = ReceiptService(
+      store: store,
+      repository: ReceiptRepository(db, store),
+      logger: logger,
+    );
+    // Limpia capturas temporales y recibos sin registro (TEC-06, RNF-21).
+    await receipts.cleanOrphans();
     final catalog = CategoryCatalog(CategoryRepository(db), logger);
     final service = MovementService(
-      repository: MovementRepository(db),
+      repository: MovementRepository(db, imageStore: store),
       catalog: catalog,
       logger: logger,
     );
-    runApp(SpendyApp(service: service, catalog: catalog));
+    runApp(
+      SpendyApp(
+        service: service,
+        catalog: catalog,
+        receipts: receipts,
+        camera: CameraService(const PluginCameraDevice(), logger),
+      ),
+    );
   } on Object catch (e) {
     final error = translateStorageError(e, writing: false);
     await logger.log(type: error.type, module: 'M-11', cause: e);

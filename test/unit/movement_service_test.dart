@@ -12,6 +12,7 @@ import 'package:spendy/core/result.dart';
 import 'package:spendy/core/validators.dart';
 import 'package:spendy/data/database.dart';
 import 'package:spendy/data/models/movement.dart';
+import 'package:spendy/data/models/receipt.dart';
 import 'package:spendy/data/repositories/category_repository.dart';
 import 'package:spendy/data/repositories/movement_repository.dart';
 import 'package:spendy/modules/categories/category_catalog.dart';
@@ -58,6 +59,10 @@ class FakeMovementRepository implements MovementRepository {
     saved.add(movement);
     return saved.length;
   }
+
+  @override
+  Future<int> insertWithReceipt(Movement movement, PendingReceipt pending) =>
+      insert(movement);
 
   @override
   Future<List<Movement>> fetchAll() async {

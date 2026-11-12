@@ -1,10 +1,17 @@
 /// M-01 · Formulario para registrar o editar un ingreso o un egreso
 /// (RF-01 a RF-06, RF-08, RF-11, RF-14).
 ///
-/// Solo habla con los servicios de M-02 y M-03; nunca con `lib/data/`
-/// (RNF-30). Si algo falla, los datos capturados se quedan en el formulario
-/// para poder reintentar (RF-05, RF-11).
+/// Con M-04 permite adjuntar la foto del recibo a un egreso nuevo (RF-15 a
+/// RF-18, RF-21): si la cámara falla, el formulario conserva lo capturado
+/// (CA-049), y si la persona sale con una foto sin guardar se le pregunta
+/// si desea descartarla (CA-056 a CA-058).
+///
+/// Solo habla con los servicios de M-02, M-03 y M-04; nunca con
+/// `lib/data/` (RNF-30). Si algo falla, los datos capturados se quedan en
+/// el formulario para poder reintentar (RF-05, RF-11).
 library;
+
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -14,7 +21,11 @@ import '../../core/formatters.dart';
 import '../../core/result.dart';
 import '../../modules/categories/category_catalog.dart';
 import '../../modules/movements/movement_service.dart';
+import '../../modules/receipts/camera_service.dart';
+import '../../modules/receipts/receipt_service.dart';
 import '../widgets/amount_field.dart';
+import '../widgets/confirm_dialog.dart';
+import 'scan_screen.dart';
 
 /// Pantalla de captura. Al guardar con éxito regresa `true`.
 ///
@@ -30,6 +41,8 @@ class MovementFormScreen extends StatefulWidget {
     this.initialType = MovementType.egreso,
     this.movement,
     this.clock,
+    this.receipts,
+    this.camera,
   });
 
   final MovementService service;
@@ -41,6 +54,11 @@ class MovementFormScreen extends StatefulWidget {
 
   /// Reloj para fijar "hoy" en pruebas; por defecto, el del dispositivo.
   final DateTime Function()? clock;
+
+  /// Servicios de recibos y cámara (M-04). Sin ellos no se muestra el
+  /// botón "Escanear recibo".
+  final ReceiptService? receipts;
+  final CameraService? camera;
 
   @override
   State<MovementFormScreen> createState() => _MovementFormScreenState();
@@ -69,8 +87,16 @@ class _MovementFormScreenState extends State<MovementFormScreen> {
   bool _canRetry = false;
   bool _saving = false;
 
+  /// Foto del recibo adjunta y aún sin guardar (vive en `temp_recibos/`).
+  TempReceipt? _receipt;
+
+  /// `true` cuando ya se guardó: salir no pide confirmación.
+  bool _saved = false;
+
   bool get _isExpense => _type == MovementType.egreso;
   bool get _isEditing => _original != null;
+  bool get _canScan =>
+      !_isEditing && widget.receipts != null && widget.camera != null;
 
   DateTime _today() {
     final now = (widget.clock ?? DateTime.now)();
@@ -167,9 +193,12 @@ class _MovementFormScreenState extends State<MovementFormScreen> {
   }
 
   /// Crea o, en modo edición, actualiza. Sin cambios no escribe (CA-020).
+  /// Un egreso nuevo con foto se guarda junto con su recibo (RNF-21).
   Future<Result<void>?> _submit() {
     final original = _original;
-    if (original == null) return widget.service.save(_draft());
+    if (original == null) {
+      return widget.service.save(_draft(), receipt: _receipt);
+    }
     if (!_hasChanges(original)) return Future.value();
     return widget.service.update(original.id, _draft());
   }
@@ -188,9 +217,12 @@ class _MovementFormScreenState extends State<MovementFormScreen> {
     }
     switch (result) {
       case Success():
+        setState(() => _saved = true);
         Navigator.of(context).pop(true);
       case Failure(:final error):
         setState(() {
+          // Si falló la escritura, M-11 ya borró la foto temporal (CA-060).
+          if (error.type != ErrorType.validation) _receipt = null;
           _saving = false;
           _fieldErrors = error.fieldErrors;
           _message = error.message;
@@ -199,44 +231,135 @@ class _MovementFormScreenState extends State<MovementFormScreen> {
     }
   }
 
+  /// Abre la cámara (RF-15). Si falla o la persona registra a mano, el
+  /// formulario sigue igual (CA-049).
+  Future<void> _scan() async {
+    final receipts = widget.receipts;
+    final camera = widget.camera;
+    if (receipts == null || camera == null) return;
+    final photo = await Navigator.of(context).push<TempReceipt>(
+      MaterialPageRoute(
+        builder: (_) => ScanScreen(camera: camera, receipts: receipts),
+      ),
+    );
+    if (photo == null || !mounted) return;
+    setState(() => _receipt = photo);
+  }
+
+  Future<void> _removePhoto() async {
+    final receipt = _receipt;
+    if (receipt == null) return;
+    setState(() => _receipt = null);
+    await widget.receipts?.discard(receipt);
+  }
+
+  /// Salir sin guardar con una foto adjunta (RF-21): "Descartar" borra la
+  /// foto y no crea el movimiento (CA-057); "Seguir editando" no cambia
+  /// nada (CA-058).
+  Future<void> _confirmExit() async {
+    final discard = await showConfirmDialog(
+      context,
+      title: '¿Descartar este registro?',
+      content: 'Tienes una foto de recibo sin guardar. Si sales, se borrará '
+          'la foto y no se creará el movimiento.',
+      confirmLabel: 'Descartar',
+      cancelLabel: 'Seguir editando',
+    );
+    if (!discard || !mounted) return;
+    await _removePhoto();
+    if (mounted) Navigator.of(context).pop(false);
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_title()),
-      ),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            _typeSelector(),
-            const SizedBox(height: 16),
-            if (_message != null) ...[
-              _messageBanner(),
-              const SizedBox(height: 16)
-            ],
-            AmountField(
-              controller: _amount,
-              errorText: _fieldErrors[MovementFields.amount],
-              onChanged: (_) => _clearError(MovementFields.amount),
-            ),
-            const SizedBox(height: 16),
-            _dateField(),
-            const SizedBox(height: 16),
-            _categoryField(),
-            if (_isExpense) ...[
-              const SizedBox(height: 16),
-              _paymentMethodField(),
-              const SizedBox(height: 16),
-              _descriptionField(),
-            ],
-            const SizedBox(height: 16),
-            _noteField(),
-            const SizedBox(height: 24),
-            _saveButton(),
-          ],
+    return PopScope<Object?>(
+      canPop: _receipt == null || _saved,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _confirmExit();
+      },
+      child: Scaffold(
+        appBar: AppBar(title: Text(_title())),
+        body: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: _formFields(),
+          ),
         ),
       ),
+    );
+  }
+
+  List<Widget> _formFields() {
+    return [
+      _typeSelector(),
+      const SizedBox(height: 16),
+      if (_message != null) ...[_messageBanner(), const SizedBox(height: 16)],
+      AmountField(
+        controller: _amount,
+        errorText: _fieldErrors[MovementFields.amount],
+        onChanged: (_) => _clearError(MovementFields.amount),
+      ),
+      const SizedBox(height: 16),
+      _dateField(),
+      const SizedBox(height: 16),
+      _categoryField(),
+      if (_isExpense) ...[
+        const SizedBox(height: 16),
+        _paymentMethodField(),
+        const SizedBox(height: 16),
+        _descriptionField(),
+      ],
+      if ((_canScan && _isExpense) || _receipt != null) ...[
+        const SizedBox(height: 16),
+        _receiptField(),
+      ],
+      const SizedBox(height: 16),
+      _noteField(),
+      const SizedBox(height: 24),
+      _saveButton(),
+    ];
+  }
+
+  /// Botón "Escanear recibo" o la miniatura de la foto adjunta.
+  Widget _receiptField() {
+    final receipt = _receipt;
+    if (receipt == null) {
+      return OutlinedButton.icon(
+        onPressed: _saving ? null : _scan,
+        icon: const Icon(Icons.camera_alt_outlined),
+        label: const Text('Escanear recibo'),
+        style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+      );
+    }
+    return Row(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Image.file(
+            File(receipt.path),
+            width: 72,
+            height: 96,
+            fit: BoxFit.cover,
+            semanticLabel: 'Foto del recibo adjunta',
+            errorBuilder: (_, __, ___) =>
+                const SizedBox(width: 72, height: 96, child: Icon(Icons.image)),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Foto del recibo adjunta'),
+              TextButton(
+                onPressed: _saving ? null : _removePhoto,
+                style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+                child: const Text('Quitar foto'),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 

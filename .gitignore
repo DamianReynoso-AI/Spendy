@@ -39,3 +39,6 @@ pubspec.lock
 *.tmp
 tmp/
 .cache/
+
+# Python
+__pycache__/
