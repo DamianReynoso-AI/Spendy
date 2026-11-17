@@ -286,7 +286,7 @@ El documento no asigna prioridad a los RNF; la sección 9.2 solo indica cuáles 
 
 | ID | Requerimiento | Ambigüedad detectada | Resolución del equipo |
 |---|---|---|---|
-| H-01 (14.2) | CA-007 | En la sección 8.1 el criterio de éxito de HU-02 aparece como "CA-00,". La matriz (11) y 12.5 usan CA-007. | Se toma como CA-007. Corregir el ID en 8.1 del documento. |
+| H-01 (14.2) | CA-007 | En la sección 8.1 el criterio de éxito de HU-02 aparece como "CA-00,". La matriz (11) y 12.5 usan CA-007. | Se toma como CA-007. Corregido en `docs/requerimientos.pdf` v1.4 (17/11/2026). |
 | ALC-01 / H-03 (9.3, 14.2) | RNF-34 | El alcance elige una sola plataforma, pero RNF-34 pide Android e iOS. | Parcial: el equipo eligió Flutter (código en main). Falta confirmar en qué plataforma se prueba (D-01) y ajustar RNF-34. Antes del cierre v1.0.0. |
 | AMB-06 / D-03 | RF-04, RF-54, CA-151 | No se define qué pasa con un monto con coma decimal (12,5). | Resuelta: solo punto decimal; la coma se rechaza con mensaje. Implementado en lib/core/validators.dart (b27ef9d). |
 | AMB-01 / D-04 | RF-03, RNF-05 | "El mensaje de error correspondiente" no está definido. | Resuelta: catálogo único ValidationMessages en lib/core/validators.dart (b27ef9d). |

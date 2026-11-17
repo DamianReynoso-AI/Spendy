@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 import 'package:spendy/core/error_logger.dart';
@@ -58,6 +59,19 @@ void main() {
       expect(text, contains('Año consultado'));
       expect(text, contains('Gastos por categoría'));
       expect(text, contains('Fecha de generación'));
+    });
+
+    testWidgets(
+        'CA-110: con el teléfono en inglés (EE. UU.) conserva el formato '
+        'de México', (tester) async {
+      tester.platformDispatcher.localesTestValue = const [Locale('en', 'US')];
+      tester.platformDispatcher.localeTestValue = const Locale('en', 'US');
+      addTearDown(tester.platformDispatcher.clearAllTestValues);
+      final text = exporter.buildText(summary, generated);
+      expect(text, contains('Fecha de generación,05/11/2026'));
+      expect(text, contains(r'Ingresos,"$15,000.00"'));
+      expect(text, isNot(contains('11/05/2026')));
+      expect(text, isNot(contains('Income')));
     });
 
     test('RF-42: los cuatro bloques con formato MXN y DD/MM/AAAA', () {

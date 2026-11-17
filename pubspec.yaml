@@ -1,7 +1,7 @@
 name: spendy
 description: "SPENDY - registro de ingresos, egresos y comprobantes fiscales (Zenorbak 2)."
 publish_to: 'none'
-version: 0.2.0+2
+version: 1.0.0+7
 
 environment:
   sdk: ^3.5.0
