@@ -149,17 +149,15 @@ void main() {
       expect(dir.listSync(), isEmpty);
     });
 
-    test('un error de ML Kit se vuelve OcrException(server)', () async {
+    test('un error de ML Kit sube con su causa y borra la foto temporal',
+        () async {
       final adapter = MlKitOcrAdapter(
         workDir: dir,
         readLines: (_) async => throw StateError('falló'),
       );
       await expectLater(
         adapter.recognize(Uint8List(1), OcrCancelToken()),
-        throwsA(
-          isA<OcrException>()
-              .having((e) => e.kind, 'kind', OcrFailureKind.server),
-        ),
+        throwsA(isA<StateError>()),
       );
       expect(dir.listSync(), isEmpty);
     });
