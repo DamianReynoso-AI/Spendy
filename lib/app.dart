@@ -1,6 +1,8 @@
 /// M-01 · Raíz de la interfaz: tema, idioma fijo es-MX y pantalla inicial
 /// (RF-54, RNF-37), con la guardia del aviso de privacidad en el primer
-/// inicio (RF-51; CA-141 a CA-143).
+/// inicio (RF-51; CA-141 a CA-143) y el bloqueo con PIN al abrir, al volver
+/// del segundo plano y en el selector de recientes (RF-46, RF-50; RNF-19;
+/// CA-119 a CA-123, CA-140).
 library;
 
 import 'package:flutter/material.dart';
@@ -13,9 +15,11 @@ import 'modules/privacy/onboarding_service.dart';
 import 'modules/receipts/camera_service.dart';
 import 'modules/receipts/receipt_service.dart';
 import 'modules/search/movement_filter.dart';
+import 'modules/security/lock_controller.dart';
 import 'modules/summary/summary_service.dart';
 import 'ui/screens/home_screen.dart';
 import 'ui/screens/onboarding_screen.dart';
+import 'ui/screens/pin_screen.dart';
 import 'ui/screens/summary_screen.dart';
 
 /// Idioma y región fijos: la app no cambia aunque el teléfono esté en
@@ -28,7 +32,14 @@ ThemeData _theme() => ThemeData(
       materialTapTargetSize: MaterialTapTargetSize.padded,
     );
 
-MaterialApp _materialApp(Widget home) => MaterialApp(
+MaterialApp _materialApp(
+  Widget home, {
+  Key? key,
+  TransitionBuilder? builder,
+}) =>
+    MaterialApp(
+      key: key,
+      builder: builder,
       title: 'SPENDY',
       theme: _theme(),
       locale: spendyLocale,
@@ -50,6 +61,7 @@ class SpendyApp extends StatelessWidget {
     this.summary,
     this.exports,
     this.filter,
+    this.lock,
   });
 
   final MovementService service;
@@ -63,6 +75,9 @@ class SpendyApp extends StatelessWidget {
   final ExportService? exports;
   final MovementFilter? filter;
 
+  /// Protección con PIN (incremento 7). Sin ella no hay bloqueo.
+  final LockController? lock;
+
   Widget _home() => HomeScreen(
         service: service,
         catalog: catalog,
@@ -71,15 +86,137 @@ class SpendyApp extends StatelessWidget {
         summary: summary,
         exports: exports,
         filter: filter,
+        lock: lock,
       );
 
   @override
   Widget build(BuildContext context) {
     final gate = onboarding;
-    return _materialApp(
-      gate == null ? _home() : StartGate(onboarding: gate, home: _home),
+    final start =
+        gate == null ? _home() : StartGate(onboarding: gate, home: _home);
+    final lock = this.lock;
+    if (lock == null) return _materialApp(start);
+    // Tras un restablecimiento cambia la generación y se reconstruye toda
+    // la app, que vuelve a pedir el aviso de privacidad (CA-140).
+    return LockScope(
+      controller: lock,
+      builder: (generation) => _materialApp(
+        start,
+        key: ValueKey(generation),
+        builder: (context, child) =>
+            LockGate(controller: lock, child: child ?? const SizedBox()),
+      ),
     );
   }
+}
+
+/// Escucha el ciclo de vida de la app para el bloqueo (CA-121 a CA-123) y
+/// bloquea el botón "atrás" mientras se pide el PIN, para no cerrar
+/// pantallas ocultas debajo. Va por encima de [MaterialApp] para recibir
+/// "atrás" antes que su navegador.
+class LockScope extends StatefulWidget {
+  const LockScope({super.key, required this.controller, required this.builder});
+
+  final LockController controller;
+  final Widget Function(int generation) builder;
+
+  @override
+  State<LockScope> createState() => _LockScopeState();
+}
+
+class _LockScopeState extends State<LockScope> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) =>
+      widget.controller.handleLifecycle(state);
+
+  @override
+  Future<bool> didPopRoute() async => widget.controller.locked;
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+        listenable: widget.controller,
+        builder: (_, __) => widget.builder(widget.controller.generation),
+      );
+}
+
+/// Muestra la pantalla del PIN en lugar de la app mientras está bloqueada
+/// (CA-119, CA-120) y una cubierta lisa cuando la app no está en primer
+/// plano (RNF-19, CA-123). En el arranque en frío la app no se construye
+/// hasta desbloquear, así que no se lee ningún dato antes.
+class LockGate extends StatefulWidget {
+  const LockGate({super.key, required this.controller, required this.child});
+
+  final LockController controller;
+  final Widget child;
+
+  @override
+  State<LockGate> createState() => _LockGateState();
+}
+
+class _LockGateState extends State<LockGate> {
+  bool _appBuilt = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final lock = widget.controller;
+    if (!lock.ready) return const _PlainCover();
+    if (!lock.locked) _appBuilt = true;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (_appBuilt)
+          Offstage(
+            offstage: lock.locked,
+            child: TickerMode(enabled: !lock.locked, child: widget.child),
+          ),
+        if (lock.locked) _LockNavigator(controller: lock),
+        if (lock.obscured) const _PlainCover(),
+      ],
+    );
+  }
+}
+
+/// Navegador propio de la pantalla de PIN, para sus diálogos de
+/// confirmación del restablecimiento.
+class _LockNavigator extends StatelessWidget {
+  const _LockNavigator({required this.controller});
+
+  final LockController controller;
+
+  @override
+  Widget build(BuildContext context) => HeroControllerScope.none(
+        child: Navigator(
+          onGenerateRoute: (_) => MaterialPageRoute<void>(
+            builder: (_) => PinUnlockScreen(controller: controller),
+          ),
+        ),
+      );
+}
+
+/// Fondo liso sin datos (cubierta de recientes y espera inicial).
+class _PlainCover extends StatelessWidget {
+  const _PlainCover();
+
+  @override
+  Widget build(BuildContext context) => const ColoredBox(
+        key: Key('privacy_cover'),
+        color: Colors.white,
+        child: Center(
+          child: Icon(Icons.lock_outline, size: 56, color: Color(0xFF00695C)),
+        ),
+      );
 }
 
 /// Guardia de la ruta inicial: mientras el aviso de privacidad no esté

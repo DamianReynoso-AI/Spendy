@@ -12,8 +12,10 @@ import '../../modules/movements/movement_service.dart';
 import '../../modules/receipts/camera_service.dart';
 import '../../modules/receipts/receipt_service.dart';
 import '../../modules/search/movement_filter.dart';
+import '../../modules/security/lock_controller.dart';
 import '../../modules/summary/summary_service.dart';
 import 'movement_list_screen.dart';
+import 'settings_screen.dart';
 import 'summary_screen.dart';
 
 /// Pantalla principal. El balance se vuelve a calcular cada vez que la
@@ -29,6 +31,7 @@ class HomeScreen extends StatefulWidget {
     this.summary,
     this.exports,
     this.filter,
+    this.lock,
   });
 
   final MovementService service;
@@ -42,6 +45,9 @@ class HomeScreen extends StatefulWidget {
 
   /// Búsqueda y filtros (incremento 6).
   final MovementFilter? filter;
+
+  /// Configuración del PIN y la biometría (incremento 7).
+  final LockController? lock;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -82,6 +88,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _openSettings() {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => SettingsScreen(lock: widget.lock!)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final hasSummary = widget.summary != null && widget.exports != null;
@@ -92,6 +104,12 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: _openSummary,
             icon: const Icon(Icons.summarize_outlined),
             tooltip: 'Resumen anual',
+          ),
+        if (widget.lock != null)
+          IconButton(
+            onPressed: _openSettings,
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Configuración',
           ),
       ],
       service: widget.service,

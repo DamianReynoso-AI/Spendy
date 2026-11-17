@@ -41,4 +41,29 @@ class AppConfig {
   /// Meta de tiempo de la lectura OCR en al menos el 90 % de los intentos
   /// (RNF-13, CA-065).
   static const Duration ocrTargetTime = Duration(seconds: 8);
+
+  /// Longitud exacta del PIN de acceso: 6 dígitos (RF-45, CA-115).
+  static const int pinLength = 6;
+
+  /// Intentos fallidos consecutivos antes del bloqueo temporal (RF-48,
+  /// CA-129, CA-130).
+  static const int maxPinAttempts = 5;
+
+  /// Duración del bloqueo tras [maxPinAttempts] fallos: 30 segundos
+  /// (RF-48, CA-130, CA-132).
+  static const Duration pinLockout = Duration(seconds: 30);
+
+  /// Tiempo en segundo plano a partir del cual se vuelve a pedir el PIN:
+  /// más de 60 segundos lo pide, 60 o menos no (RF-46, CA-121, CA-122,
+  /// AMB-07).
+  static const Duration backgroundLockAfter = Duration(seconds: 60);
+
+  /// Iteraciones de PBKDF2-HMAC-SHA256 al derivar el hash del PIN
+  /// (RNF-15, TEC-05). Un PIN de 6 dígitos solo tiene un millón de
+  /// combinaciones: el costo frena un ataque fuera de línea, pero la
+  /// protección real es el almacén seguro más el límite de intentos.
+  static const int pinHashIterations = 100000;
+
+  /// Bytes de la sal criptográfica aleatoria de cada PIN (RNF-15).
+  static const int pinSaltBytes = 16;
 }

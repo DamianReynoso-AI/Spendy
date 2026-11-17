@@ -7,6 +7,7 @@ import 'dart:io';
 import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:sqflite/sqflite.dart';
 
 import 'app.dart';
 import 'core/error_logger.dart';
@@ -16,6 +17,7 @@ import 'data/repositories/category_repository.dart';
 import 'data/repositories/movement_repository.dart';
 import 'data/repositories/receipt_repository.dart';
 import 'data/repositories/settings_repository.dart';
+import 'data/secure_store.dart';
 import 'modules/categories/category_catalog.dart';
 import 'modules/export/export_service.dart';
 import 'modules/movements/movement_service.dart';
@@ -26,12 +28,41 @@ import 'modules/privacy/onboarding_service.dart';
 import 'modules/receipts/camera_service.dart';
 import 'modules/receipts/receipt_service.dart';
 import 'modules/search/movement_filter.dart';
+import 'modules/security/biometric_service.dart';
+import 'modules/security/lock_controller.dart';
+import 'modules/security/pin_service.dart';
+import 'modules/security/reset_service.dart';
 import 'modules/summary/summary_service.dart';
 
 /// `errores.log` en el almacenamiento privado de la app (RNF-20).
 Future<File> _logFile() async {
   final dir = await getApplicationSupportDirectory();
   return File(p.join(dir.path, errorLogFileName));
+}
+
+/// Protección de acceso (M-09). Antes de todo termina un restablecimiento
+/// que se haya interrumpido (CA-139) y lee si hay PIN para iniciar
+/// bloqueada (CA-119).
+Future<LockController> _lockController(
+  Database db,
+  ImageStore store,
+  ErrorLogger logger,
+) async {
+  final secure = SecureStore();
+  final reset = ResetService(
+    db: db,
+    images: store,
+    store: secure,
+    logger: logger,
+  );
+  await reset.completePendingReset();
+  final lock = LockController(
+    pin: PinService(store: secure, logger: logger),
+    biometrics: BiometricService(store: secure, logger: logger),
+    reset: reset,
+  );
+  await lock.init();
+  return lock;
 }
 
 /// Proveedor de OCR leído de la configuración externa (RNF-18). Sin
@@ -55,6 +86,7 @@ Future<void> main() async {
     final db = await openSpendyDatabase();
     final store = ImageStore(await getApplicationSupportDirectory());
     await store.init();
+    final lock = await _lockController(db, store, logger);
     final receipts = ReceiptService(
       store: store,
       repository: ReceiptRepository(db, store),
@@ -83,6 +115,7 @@ Future<void> main() async {
           directory: getTemporaryDirectory,
           logger: logger,
         ),
+        lock: lock,
       ),
     );
   } on Object catch (e) {

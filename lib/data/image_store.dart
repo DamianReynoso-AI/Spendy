@@ -179,6 +179,20 @@ class ImageStore {
     return removed;
   }
 
+  /// Borra todas las imágenes de `temp_recibos/` y `recibos/` para el
+  /// restablecimiento de la app (RF-50; CA-137). Conserva las carpetas y
+  /// su `.nomedia`. Se puede repetir sin efectos extra: si la app se
+  /// cierra a mitad, al reabrir se vuelve a llamar y termina (CA-139).
+  /// Devuelve cuántos archivos borró.
+  Future<int> deleteAllImages() async {
+    await init();
+    var removed = 0;
+    for (final dir in [tempDir, receiptsDir]) {
+      removed += await _deleteWhere(dir, (_) => true);
+    }
+    return removed;
+  }
+
   Future<int> _deleteWhere(Directory dir, bool Function(File) test) async {
     var removed = 0;
     await for (final entity in dir.list()) {
