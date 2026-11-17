@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "mx.zenorbak.spendy"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 37 // permission_handler_android pide 37 o mayor
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

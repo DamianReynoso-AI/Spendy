@@ -4,6 +4,8 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <!-- RF-23 / RNF-16: solo el adaptador de OCR usa la red, siempre por HTTPS. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Incremento 7: desbloqueo con huella o rostro (local_auth). -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <application
         android:label="SPENDY"
         android:usesCleartextTraffic="false"

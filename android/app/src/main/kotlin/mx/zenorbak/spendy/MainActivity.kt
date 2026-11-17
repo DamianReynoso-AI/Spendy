@@ -1,5 +1,6 @@
 package mx.zenorbak.spendy
 
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 
-class MainActivity : FlutterActivity()
+// local_auth (incremento 7) necesita FlutterFragmentActivity.
+class MainActivity : FlutterFragmentActivity()

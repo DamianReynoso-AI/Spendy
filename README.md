@@ -45,10 +45,15 @@ git clone https://github.com/DamianReynoso-AI/Spendy.git
 cd Spendy
 ```
 
-## 3. Configurar variables a partir de `.env.example` (≈ 2 min)
+## 3. Lectura de recibos (OCR) y `.env.example`
 
-La lectura OCR usa un servicio externo. Su URL y su clave **nunca** van en
-el código ni en el repositorio (RNF-18).
+La lectura de recibos usa **Google ML Kit** dentro del teléfono: no necesita
+clave, internet ni configuración, y la foto no sale del teléfono. No hace
+falta crear `.env`.
+
+Opcional: para usar en su lugar un servicio de OCR en la nube, copia
+`.env.example` a `.env` y llénalo. Su URL y su clave **nunca** van en el
+código ni en el repositorio (RNF-18).
 
 ```bash
 cp .env.example .env
@@ -61,11 +66,9 @@ cp .env.example .env
 | `SPENDY_OCR_API_KEY` | No | Clave del servicio; se envía como `Authorization: Bearer <clave>`. |
 | `SPENDY_OCR_PROVIDER_NAME` | No | Nombre del proveedor que se muestra en el aviso de privacidad. |
 
-`.env` está en `.gitignore`. Si no configuras nada, la app funciona igual:
-al escanear avisa que la lectura no está disponible y abre el registro
-manual con la foto adjunta.
+`.env` está en `.gitignore`.
 
-Contrato que debe cumplir el servicio de OCR (cualquier proveedor que lo
+Contrato que debe cumplir el servicio de OCR en la nube (cualquier proveedor que lo
 cumpla sirve; para otro contrato basta con otra implementación de
 `OcrAdapter`, RNF-32):
 
@@ -92,11 +95,11 @@ Conecta un teléfono Android con depuración USB o abre un emulador y corre:
 flutter run --dart-define-from-file=.env
 ```
 
-Sin `.env` también funciona (`flutter run`), pero sin lectura OCR.
+Sin `.env` funciona igual (`flutter run`) y lee los recibos con ML Kit.
 
 Permisos ya declarados en `android/app/src/main/AndroidManifest.xml`:
-`CAMERA` (foto del recibo) e `INTERNET` (solo para el OCR, siempre por
-HTTPS). Las fotos se guardan en la carpeta privada de la app (`recibos/`,
+`CAMERA` (foto del recibo), `USE_BIOMETRIC` (desbloqueo con huella, M-09) e
+`INTERNET` (solo para la alternativa de OCR en la nube, siempre por HTTPS). Las fotos se guardan en la carpeta privada de la app (`recibos/`,
 con `.nomedia`), nunca en la galería (RNF-14).
 
 Para generar un APK de prueba: `flutter build apk --dart-define-from-file=.env`.
