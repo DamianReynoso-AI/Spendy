@@ -121,6 +121,23 @@ void main() {
       expect(summary.formattedDifference, r'-$500.00');
     });
 
+    test('CA-103: total de gastos de cada categoría del año', () {
+      final summary = calculator.calculate(2026, [
+        expense(35000, DateTime(2026, 1, 10), 'Alimentos'),
+        expense(15050, DateTime(2026, 6, 1), 'Alimentos'),
+        expense(9900, DateTime(2026, 3, 3), 'Transporte'),
+        expense(120000, DateTime(2026, 12, 31), 'Vivienda'),
+        expense(77700, DateTime(2025, 12, 31), 'Vivienda'),
+      ]);
+      final byName = {
+        for (final c in summary.byCategory) c.name: c.formatted,
+      };
+      expect(byName['Alimentos'], r'$500.50');
+      expect(byName['Transporte'], r'$99.00');
+      expect(byName['Vivienda'], r'$1,200.00', reason: 'solo 2026');
+      expect(byName['Otros'], r'$0.00');
+    });
+
     test('CA-106: las 6 categorías siempre aparecen, en orden y con \$0.00',
         () {
       final summary = calculator.calculate(2026, [

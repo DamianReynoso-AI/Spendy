@@ -198,10 +198,7 @@ class _SummaryScreenState extends State<SummaryScreen>
             ),
           ),
           for (final total in summary.byCategory)
-            ListTile(
-              title: Text(total.name),
-              trailing: Text(total.formatted),
-            ),
+            _AmountRow(label: total.name, value: total.formatted),
         ],
       ),
     );
@@ -241,15 +238,41 @@ class _TotalCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      child: ListTile(
-        title: Text(label),
-        trailing: Text(
-          value,
-          style: Theme.of(context)
-              .textTheme
-              .titleMedium
-              ?.copyWith(fontWeight: FontWeight.bold),
-        ),
+      child: _AmountRow(
+        label: label,
+        value: value,
+        valueStyle: Theme.of(context)
+            .textTheme
+            .titleMedium
+            ?.copyWith(fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+}
+
+/// Renglón "concepto ... monto". Si con texto grande no caben en una
+/// línea, el monto baja al siguiente renglón en vez de cortarse
+/// (RNF-06, RNF-35).
+class _AmountRow extends StatelessWidget {
+  const _AmountRow({required this.label, required this.value, this.valueStyle});
+
+  final String label;
+  final String value;
+  final TextStyle? valueStyle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 16,
+        runSpacing: 4,
+        children: [
+          Text(label, style: Theme.of(context).textTheme.bodyLarge),
+          Text(value, style: valueStyle),
+        ],
       ),
     );
   }

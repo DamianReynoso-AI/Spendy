@@ -168,7 +168,6 @@ class _FilterBarState extends State<FilterBar> {
         child: DropdownButton<int?>(
           value: _criteria.categoryId,
           isExpanded: true,
-          isDense: true,
           items: [
             const DropdownMenuItem<int?>(child: Text('Todas')),
             for (final c in options)

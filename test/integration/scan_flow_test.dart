@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:spendy/app.dart';
 import 'package:spendy/core/error_logger.dart';
+import 'package:spendy/core/validators.dart';
 import 'package:spendy/modules/categories/category_catalog.dart';
 import 'package:spendy/modules/movements/movement_service.dart';
 import 'package:spendy/modules/ocr/mock_ocr_adapter.dart';
@@ -161,6 +162,20 @@ void main() {
     await tapText(tester, 'Usar foto');
     expect(find.text(OcrReviewTexts.title), findsOneWidget);
     expect(ocr.received, hasLength(2));
+  });
+
+  testWidgets('CA-072: total no leído y sin corregir pide capturarlo',
+      (tester) async {
+    ocr.text = 'OXXO TIENDA 1234\nFECHA 10/11/2026\nGRACIAS POR SU COMPRA';
+    await pumpApp(tester);
+    await scanAndUse(tester);
+    await tester.pumpAndSettle();
+    expect(find.text(OcrReviewTexts.notRead), findsOneWidget);
+    await choose(tester, DropdownButton<int>, 'Alimentos');
+    await choose(tester, DropdownButton<PaymentMethod>, 'Efectivo');
+    await tapText(tester, 'Guardar');
+    expect(find.text(ValidationMessages.amountRequired), findsOneWidget);
+    expect(repo.rows, isEmpty);
   });
 
   testWidgets('CA-075: ilegible y Registrar manualmente conserva la foto',
