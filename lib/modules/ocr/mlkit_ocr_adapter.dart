@@ -30,6 +30,8 @@ class MlKitOcrAdapter implements OcrAdapter {
 
   static TextRecognizer? _recognizer;
 
+  /// Si ML Kit falla, el error original sube tal cual: [OcrService] lo
+  /// registra en la bitácora con su causa y muestra el mensaje no técnico.
   @override
   Future<String> recognize(Uint8List image, OcrCancelToken cancel) async {
     final file = File(
@@ -40,10 +42,6 @@ class MlKitOcrAdapter implements OcrAdapter {
       final fragments = await _readLines(file.path);
       if (cancel.isCancelled) throw const OcrException(OcrFailureKind.server);
       return joinFragmentsIntoLines(fragments);
-    } on OcrException {
-      rethrow;
-    } catch (e) {
-      throw const OcrException(OcrFailureKind.server);
     } finally {
       if (file.existsSync()) file.deleteSync();
     }
