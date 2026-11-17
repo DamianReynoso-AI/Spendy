@@ -13,6 +13,7 @@ import '../../core/validators.dart';
 import '../../data/models/movement.dart';
 import '../../data/repositories/movement_repository.dart';
 import '../categories/category_catalog.dart';
+import '../receipts/receipt_service.dart';
 import 'balance_calculator.dart';
 
 export '../../config/categories.dart' show MovementType;
@@ -66,6 +67,10 @@ class MovementMessages {
   static const String notFound =
       'Este movimiento ya no existe. Regresa a la lista para ver tus '
       'movimientos actuales.';
+  static const String incomeNoReceipt =
+      'Los ingresos no llevan recibo. Quita la foto o cambia a egreso.';
+  static const String receiptDiscarded =
+      ' La foto del recibo se descartó; vuelve a escanearla.';
   static const String deleteFailed =
       'No se pudo eliminar el movimiento por un problema con el '
       'almacenamiento del teléfono. El movimiento sigue guardado; '
@@ -251,14 +256,31 @@ class MovementService {
   /// Valida y guarda. Devuelve el id nuevo, o un error con el mensaje para
   /// la persona. Si falla, no se guarda nada y el formulario conserva lo
   /// capturado (RF-05, RF-11).
-  Future<Result<int>> save(MovementDraft draft) async {
+  ///
+  /// Con [receipt] (ya comprimido) guarda el egreso y su recibo de forma
+  /// atómica (RNF-21): o se guardan los dos o ninguno. Si falla, M-11 borra
+  /// la imagen temporal (CA-060, CA-061) y el mensaje lo dice.
+  Future<Result<int>> save(MovementDraft draft, {TempReceipt? receipt}) async {
     final validation = await validate(draft);
     if (validation case Failure(:final error)) return Failure(error);
+    if (receipt != null && draft.type == MovementType.ingreso) {
+      return const Failure(_incomeReceiptError);
+    }
     final movement = _toMovement(draft);
     try {
-      return Success(await _repository.insert(movement));
+      final id = receipt == null
+          ? await _repository.insert(movement)
+          : await _repository.insertWithReceipt(movement, receipt.toPending());
+      return Success(id);
     } on Object catch (e) {
-      return Failure(await _storageFailure(e, writing: true));
+      final error = await _storageFailure(e, writing: true);
+      if (receipt == null) return Failure(error);
+      return Failure(
+        AppError(
+          type: error.type,
+          message: error.message + MovementMessages.receiptDiscarded,
+        ),
+      );
     }
   }
 
@@ -266,7 +288,7 @@ class MovementService {
   Future<Result<List<MovementItem>>> list() async {
     try {
       final movements = await _repository.fetchAll();
-      return Success(movements.map(_toItem).toList(growable: false));
+      return Success(movements.map(toMovementItem).toList(growable: false));
     } on Object catch (e) {
       return Failure(await _storageFailure(e, writing: false));
     }
@@ -279,7 +301,7 @@ class MovementService {
     try {
       final movement = await _repository.findById(id);
       if (movement == null) return const Failure(_notFoundError);
-      return Success(_toItem(movement));
+      return Success(toMovementItem(movement));
     } on Object catch (e) {
       return Failure(await _storageFailure(e, writing: false));
     }
@@ -338,6 +360,11 @@ class MovementService {
     }
   }
 
+  static const AppError _incomeReceiptError = AppError(
+    type: ErrorType.validation,
+    message: MovementMessages.incomeNoReceipt,
+  );
+
   static const AppError _notFoundError = AppError(
     type: ErrorType.unexpected,
     message: MovementMessages.notFound,
@@ -369,18 +396,6 @@ class MovementService {
       updatedAt: now,
     );
   }
-
-  MovementItem _toItem(Movement m) => MovementItem(
-        id: m.id!,
-        type: m.type,
-        amountCents: m.amountCents,
-        date: m.date,
-        categoryId: m.categoryId,
-        categoryName: m.categoryName ?? '',
-        paymentMethod: PaymentMethod.fromValue(m.paymentMethod),
-        description: m.description,
-        note: m.note,
-      );
 }
 
 /// Convierte un monto ya validado por [validateAmount] a centavos, con
@@ -403,3 +418,17 @@ String? _clean(String? text) {
   final trimmed = text?.trim();
   return (trimmed == null || trimmed.isEmpty) ? null : trimmed;
 }
+
+/// Convierte un registro de la base en un elemento de la lista (también
+/// lo usa M-06 para los resultados filtrados).
+MovementItem toMovementItem(Movement m) => MovementItem(
+      id: m.id!,
+      type: m.type,
+      amountCents: m.amountCents,
+      date: m.date,
+      categoryId: m.categoryId,
+      categoryName: m.categoryName ?? '',
+      paymentMethod: PaymentMethod.fromValue(m.paymentMethod),
+      description: m.description,
+      note: m.note,
+    );

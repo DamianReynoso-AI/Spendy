@@ -7,17 +7,47 @@ library;
 import 'package:flutter/material.dart';
 
 import '../../modules/categories/category_catalog.dart';
+import '../../modules/export/export_service.dart';
 import '../../modules/movements/movement_service.dart';
+import '../../modules/receipts/camera_service.dart';
+import '../../modules/receipts/receipt_service.dart';
+import '../../modules/search/movement_filter.dart';
+import '../../modules/security/lock_controller.dart';
+import '../../modules/summary/summary_service.dart';
 import 'movement_list_screen.dart';
+import 'settings_screen.dart';
+import 'summary_screen.dart';
 
 /// Pantalla principal. El balance se vuelve a calcular cada vez que la
 /// lista avisa que se creó, editó o eliminó un movimiento (CA-001, CA-007,
 /// CA-016, CA-021).
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, required this.service, required this.catalog});
+  const HomeScreen({
+    super.key,
+    required this.service,
+    required this.catalog,
+    this.receipts,
+    this.camera,
+    this.summary,
+    this.exports,
+    this.filter,
+    this.lock,
+  });
 
   final MovementService service;
   final CategoryCatalog catalog;
+  final ReceiptService? receipts;
+  final CameraService? camera;
+
+  /// Resumen anual y exportación (incremento 5).
+  final SummaryService? summary;
+  final ExportService? exports;
+
+  /// Búsqueda y filtros (incremento 6).
+  final MovementFilter? filter;
+
+  /// Configuración del PIN y la biometría (incremento 7).
+  final LockController? lock;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -47,13 +77,48 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  void _openSummary() {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => SummaryScreen(
+          summary: widget.summary!,
+          exports: widget.exports!,
+        ),
+      ),
+    );
+  }
+
+  void _openSettings() {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => SettingsScreen(lock: widget.lock!)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final hasSummary = widget.summary != null && widget.exports != null;
     return MovementListScreen(
+      actions: [
+        if (hasSummary)
+          IconButton(
+            onPressed: _openSummary,
+            icon: const Icon(Icons.summarize_outlined),
+            tooltip: 'Resumen anual',
+          ),
+        if (widget.lock != null)
+          IconButton(
+            onPressed: _openSettings,
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Configuración',
+          ),
+      ],
       service: widget.service,
       catalog: widget.catalog,
       header: BalanceCard(balance: _balance, error: _error),
       onChanged: _loadBalance,
+      receipts: widget.receipts,
+      camera: widget.camera,
+      filter: widget.filter,
     );
   }
 }

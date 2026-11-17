@@ -19,6 +19,20 @@ enum ErrorType {
   /// Falló la lectura de la base (lista de movimientos o categorías).
   storageRead('almacenamiento_lectura'),
 
+  /// La persona negó el permiso de cámara (RF-16). No es un fallo técnico
+  /// y no se escribe en la bitácora.
+  cameraPermission('permiso_camara'),
+
+  /// La cámara falló, está ocupada o no existe (RF-17).
+  camera('camara'),
+
+  /// Falló la lectura del recibo con OCR: sin internet, error del
+  /// servicio o tiempo agotado (RF-30).
+  ocr('ocr'),
+
+  /// Falló la exportación del resumen a CSV o PDF (RF-44).
+  export('exportacion'),
+
   /// Cualquier otro fallo no previsto.
   unexpected('inesperado');
 

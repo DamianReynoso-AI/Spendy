@@ -35,3 +35,21 @@ Future<Database> openSpendyDatabase({
       path ?? p.join(await dbFactory.getDatabasesPath(), databaseFileName);
   return dbFactory.openDatabase(dbPath, options: spendyDatabaseOptions());
 }
+
+/// Tablas con datos de la persona usuaria, en orden de borrado (primero
+/// las que apuntan a otras). `categoria` es catálogo fijo y se conserva.
+const List<String> userDataTables = ['recibo', 'movimiento', 'ajuste'];
+
+/// Borrado total de los datos de la base para el restablecimiento de la
+/// app (RF-50; CA-137, CA-139).
+///
+/// Todo ocurre en una sola transacción: si la app se cierra a mitad, la
+/// base conserva todos sus datos; si termina, queda como recién creada
+/// (sin movimientos, recibos ni ajustes, con el catálogo de categorías).
+/// También reinicia los contadores de AUTOINCREMENT.
+Future<void> wipeUserData(Database db) => db.transaction((txn) async {
+      for (final table in userDataTables) {
+        await txn.delete(table);
+      }
+      await txn.delete('sqlite_sequence');
+    });
