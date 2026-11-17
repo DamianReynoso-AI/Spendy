@@ -153,7 +153,22 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// El balance del mes en la tarjeta de inicio (los mismos montos también
+  /// salen en los recuadros de ingresos y egresos).
+  Finder balance(String text) => find.byWidgetPredicate(
+        (w) =>
+            w is Text && w.key == const Key('month_balance') && w.data == text,
+      );
+
+  Future<void> scrollTo(WidgetTester tester, Finder finder) async {
+    await tester.scrollUntilVisible(finder, 200,
+        scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
+  }
+
   Future<void> openForm(WidgetTester tester) async {
+    await tester.ensureVisible(find.text('Registrar mi primer movimiento'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Registrar mi primer movimiento'));
     await tester.pumpAndSettle();
   }
@@ -273,6 +288,7 @@ void main() {
       categoryId: 7,
     ));
     await pumpApp(tester, textScale: 2);
+    await scrollTo(tester, find.text(r'+$9,999,999.99'));
     expect(find.text(r'+$9,999,999.99'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.tap(find.text('Registrar'));
@@ -316,6 +332,7 @@ void main() {
       ));
 
   Future<void> openDetail(WidgetTester tester, String amountText) async {
+    await scrollTo(tester, find.text(amountText));
     // Se toca la parte de arriba del renglón: con texto al 200 % su centro
     // puede quedar fuera de la pantalla.
     final tile = find.ancestor(
@@ -349,14 +366,14 @@ void main() {
       (tester) async {
     await pumpApp(tester);
     expect(find.textContaining('Balance de '), findsOneWidget);
-    expect(find.text(r'$0.00'), findsOneWidget);
+    expect(balance(r'$0.00'), findsOneWidget);
   });
 
   testWidgets('CA-001 / CA-007: el balance se actualiza al registrar',
       (tester) async {
     await seed('15000', type: MovementType.ingreso);
     await pumpApp(tester);
-    expect(find.text(r'$15,000.00'), findsOneWidget);
+    expect(balance(r'$15,000.00'), findsOneWidget);
     await tester.tap(find.text('Registrar'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).first, '4000');
@@ -364,13 +381,13 @@ void main() {
     await choose(tester, methodDropdown, 'Efectivo');
     await tester.tap(find.text('Guardar'));
     await tester.pumpAndSettle();
-    expect(find.text(r'$11,000.00'), findsOneWidget, reason: 'CA-025');
+    expect(balance(r'$11,000.00'), findsOneWidget, reason: 'CA-025');
   });
 
   testWidgets('CA-027: balance negativo con -\$500.00', (tester) async {
     await seed('500');
     await pumpApp(tester);
-    expect(find.text(r'-$500.00'), findsOneWidget);
+    expect(balance(r'-$500.00'), findsOneWidget);
   });
 
   testWidgets('CA-016: edito el monto y lista, detalle y balance cambian',
@@ -389,7 +406,7 @@ void main() {
     await goBack(tester);
     await tester.pumpAndSettle();
     expect(find.text(r'−$500.00'), findsOneWidget);
-    expect(find.text(r'-$500.00'), findsOneWidget);
+    expect(balance(r'-$500.00'), findsOneWidget);
     expect(repo.rows.single.amountCents, 50000);
   });
 
@@ -485,7 +502,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Movimiento eliminado.'), findsOneWidget);
     expect(find.text(r'−$4,000.00'), findsNothing);
-    expect(find.text(r'$15,000.00'), findsOneWidget);
+    expect(balance(r'$15,000.00'), findsOneWidget);
     expect(repo.rows, hasLength(1));
   });
 
@@ -509,7 +526,7 @@ void main() {
     expect(repo.deleteCalls, 1);
     expect(repo.rows, isEmpty);
     expect(find.text('Aún no tienes movimientos'), findsOneWidget);
-    expect(find.text(r'$0.00'), findsOneWidget);
+    expect(balance(r'$0.00'), findsOneWidget);
   });
 
   testWidgets('RNF-06: detalle y diálogo al 200 % y áreas táctiles',

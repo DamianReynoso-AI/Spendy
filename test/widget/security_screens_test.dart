@@ -144,7 +144,8 @@ void main() {
         await typePin(tester, '000000');
       }
       expect(find.textContaining('Espera 30 segundos'), findsOneWidget);
-      final field = tester.widget<TextField>(find.byKey(const Key('pin_field')));
+      final field =
+          tester.widget<TextField>(find.byKey(const Key('pin_field')));
       expect(field.enabled, isFalse);
       expect(data, findsNothing);
       await tester.pumpWidget(const SizedBox());
@@ -236,7 +237,8 @@ void main() {
       expect(find.text(PinTexts.unlockTitle), findsOneWidget);
     });
 
-    testWidgets('CA-137 / CA-140: dos confirmaciones borran y muestran '
+    testWidgets(
+        'CA-137 / CA-140: dos confirmaciones borran y muestran '
         'el aviso', (tester) async {
       await pins.activate('123456', '123456');
       await pumpApp(tester);

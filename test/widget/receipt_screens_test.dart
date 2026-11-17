@@ -155,6 +155,8 @@ void main() {
   }
 
   Future<void> openFormWithAmount(WidgetTester tester) async {
+    await tester.ensureVisible(find.text('Registrar mi primer movimiento'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Registrar mi primer movimiento'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).first, '350');

@@ -17,20 +17,15 @@ import 'modules/receipts/receipt_service.dart';
 import 'modules/search/movement_filter.dart';
 import 'modules/security/lock_controller.dart';
 import 'modules/summary/summary_service.dart';
-import 'ui/screens/home_screen.dart';
 import 'ui/screens/onboarding_screen.dart';
 import 'ui/screens/pin_screen.dart';
+import 'ui/screens/shell_screen.dart';
 import 'ui/screens/summary_screen.dart';
+import 'ui/theme/spendy_theme.dart';
 
 /// Idioma y región fijos: la app no cambia aunque el teléfono esté en
 /// inglés (CA-152).
 const Locale spendyLocale = Locale('es', 'MX');
-
-ThemeData _theme() => ThemeData(
-      colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF00695C)),
-      scaffoldBackgroundColor: Colors.white,
-      materialTapTargetSize: MaterialTapTargetSize.padded,
-    );
 
 MaterialApp _materialApp(
   Widget home, {
@@ -41,7 +36,9 @@ MaterialApp _materialApp(
       key: key,
       builder: builder,
       title: 'SPENDY',
-      theme: _theme(),
+      theme: SpendyTheme.light(),
+      darkTheme: SpendyTheme.dark(),
+      themeMode: ThemeMode.system,
       locale: spendyLocale,
       supportedLocales: const [spendyLocale],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
@@ -78,7 +75,7 @@ class SpendyApp extends StatelessWidget {
   /// Protección con PIN (incremento 7). Sin ella no hay bloqueo.
   final LockController? lock;
 
-  Widget _home() => HomeScreen(
+  Widget _home() => SpendyShell(
         service: service,
         catalog: catalog,
         receipts: receipts,
@@ -210,11 +207,17 @@ class _PlainCover extends StatelessWidget {
   const _PlainCover();
 
   @override
-  Widget build(BuildContext context) => const ColoredBox(
+  Widget build(BuildContext context) => const DecoratedBox(
         key: Key('privacy_cover'),
-        color: Colors.white,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: SpendyPalette.navyGradient,
+          ),
+        ),
         child: Center(
-          child: Icon(Icons.lock_outline, size: 56, color: Color(0xFF00695C)),
+          child: Icon(Icons.lock_outline, size: 56, color: SpendyPalette.onNavy),
         ),
       );
 }

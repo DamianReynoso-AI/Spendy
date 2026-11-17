@@ -11,6 +11,8 @@ import 'package:flutter/material.dart';
 import '../../core/result.dart';
 import '../../modules/export/export_service.dart';
 import '../../modules/summary/summary_service.dart';
+import '../theme/spendy_theme.dart';
+import '../widgets/donut_chart.dart';
 
 /// Observador de rutas de la app: avisa al resumen cuando vuelve a quedar
 /// arriba de la pila.
@@ -177,8 +179,16 @@ class _SummaryScreenState extends State<SummaryScreen>
   }
 
   List<Widget> _totals(AnnualSummary summary) => [
-        _TotalCard(label: 'Ingresos del año', value: summary.formattedIncome),
-        _TotalCard(label: 'Egresos del año', value: summary.formattedExpense),
+        _TotalCard(
+          label: 'Ingresos del año',
+          value: summary.formattedIncome,
+          color: SpendyPalette.of(context).income,
+        ),
+        _TotalCard(
+          label: 'Egresos del año',
+          value: summary.formattedExpense,
+          color: SpendyPalette.of(context).expense,
+        ),
         _TotalCard(
           label: 'Diferencia (ingresos - egresos)',
           value: summary.formattedDifference,
@@ -197,9 +207,48 @@ class _SummaryScreenState extends State<SummaryScreen>
               style: Theme.of(context).textTheme.titleMedium,
             ),
           ),
-          for (final total in summary.byCategory)
-            _AmountRow(label: total.name, value: total.formatted),
+          _donut(summary),
+          for (final (i, total) in summary.byCategory.indexed)
+            _AmountRow(
+              label: total.name,
+              value: total.formatted,
+              dot: total.cents > 0 ? _sliceColor(i) : null,
+            ),
+          const SizedBox(height: 8),
         ],
+      ),
+    );
+  }
+
+  static Color _sliceColor(int i) =>
+      categoryChartColors[i % categoryChartColors.length];
+
+  /// Dona de egresos por categoría con el total al centro. Los mismos
+  /// datos van en texto debajo, con el punto del mismo color.
+  Widget _donut(AnnualSummary summary) {
+    final muted = SpendyPalette.of(context).muted;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Center(
+        child: DonutChart(
+          slices: [
+            for (final (i, total) in summary.byCategory.indexed)
+              DonutSlice(total.cents.toDouble(), _sliceColor(i)),
+          ],
+          center: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Total egresos', style: TextStyle(color: muted)),
+              Text(
+                summary.formattedExpense,
+                style: Theme.of(context)
+                    .textTheme
+                    .titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w800),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -230,10 +279,11 @@ class _SummaryScreenState extends State<SummaryScreen>
 }
 
 class _TotalCard extends StatelessWidget {
-  const _TotalCard({required this.label, required this.value});
+  const _TotalCard({required this.label, required this.value, this.color});
 
   final String label;
   final String value;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
@@ -244,7 +294,7 @@ class _TotalCard extends StatelessWidget {
         valueStyle: Theme.of(context)
             .textTheme
             .titleMedium
-            ?.copyWith(fontWeight: FontWeight.bold),
+            ?.copyWith(fontWeight: FontWeight.bold, color: color),
       ),
     );
   }
@@ -254,11 +304,19 @@ class _TotalCard extends StatelessWidget {
 /// línea, el monto baja al siguiente renglón en vez de cortarse
 /// (RNF-06, RNF-35).
 class _AmountRow extends StatelessWidget {
-  const _AmountRow({required this.label, required this.value, this.valueStyle});
+  const _AmountRow({
+    required this.label,
+    required this.value,
+    this.valueStyle,
+    this.dot,
+  });
 
   final String label;
   final String value;
   final TextStyle? valueStyle;
+
+  /// Color de la categoría en la dona.
+  final Color? dot;
 
   @override
   Widget build(BuildContext context) {
@@ -270,7 +328,23 @@ class _AmountRow extends StatelessWidget {
         spacing: 16,
         runSpacing: 4,
         children: [
-          Text(label, style: Theme.of(context).textTheme.bodyLarge),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (dot != null) ...[
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
+                ),
+                const SizedBox(width: 8),
+              ],
+              Flexible(
+                child:
+                    Text(label, style: Theme.of(context).textTheme.bodyLarge),
+              ),
+            ],
+          ),
           Text(value, style: valueStyle),
         ],
       ),
