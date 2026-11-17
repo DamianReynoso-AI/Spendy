@@ -17,7 +17,8 @@ App móvil en Flutter para registrar ingresos, egresos y comprobantes fiscales.
 | M-08 Exportación | `lib/modules/export/` | Incremento 5: CSV (UTF-8 con BOM) y PDF estándar con los cuatro bloques, nombre `spendy_resumen_AAAA` y menú nativo de compartir |
 | M-06 Búsqueda y filtros | `lib/modules/search/` | Incremento 6 (v0.6.0): rango de fechas, categoría, tipo y texto (sin acentos ni mayúsculas, `%` `_` `'` literales) combinados, con conteo y suma; sumas separadas si hay ingresos y egresos |
 | M-10 Aviso de privacidad | `lib/modules/privacy/`, `lib/config/privacy_texts.dart` | Incremento 5: pantalla obligatoria de primer inicio; la aceptación se guarda en `ajuste` |
-| M-01 Interfaz | `lib/app.dart`, `lib/ui/` | Incremento 1: formulario de captura y lista. Incremento 2: pantalla principal con balance del mes, detalle, edición y confirmación de borrado. Incremento 3: pantalla de escaneo con vista previa, foto adjunta en el formulario y recibo con zoom en el detalle. Incremento 4: botón "Escanear recibo" en la lista, progreso con "Cancelar", diálogos de error e imagen ilegible y pantalla de revisión (`ocr_review_screen.dart`). Incremento 5: aviso de privacidad al primer inicio (`onboarding_screen.dart`) y resumen anual con exportación (`summary_screen.dart`). Incremento 6: barra de filtros en la lista (`filter_bar.dart`), conteo y suma, "Sin resultados" y "Limpiar filtros" |
+| M-09 Seguridad de acceso | `lib/modules/security/`, `lib/data/secure_store.dart` | Incremento 7 (v0.7.0): PIN de 6 dígitos con hash PBKDF2-HMAC-SHA256 y sal en Keystore/Keychain, 5 intentos y bloqueo de 30 s que sobreviven al reinicio, bloqueo al abrir y tras más de 60 s en segundo plano, contenido oculto en recientes, biometría con PIN de respaldo y restablecimiento total con bandera de recuperación |
+| M-01 Interfaz | `lib/app.dart`, `lib/ui/` | Incremento 1: formulario de captura y lista. Incremento 2: pantalla principal con balance del mes, detalle, edición y confirmación de borrado. Incremento 3: pantalla de escaneo con vista previa, foto adjunta en el formulario y recibo con zoom en el detalle. Incremento 4: botón "Escanear recibo" en la lista, progreso con "Cancelar", diálogos de error e imagen ilegible y pantalla de revisión (`ocr_review_screen.dart`). Incremento 5: aviso de privacidad al primer inicio (`onboarding_screen.dart`) y resumen anual con exportación (`summary_screen.dart`). Incremento 6: barra de filtros en la lista (`filter_bar.dart`), conteo y suma, "Sin resultados" y "Limpiar filtros". Incremento 7: `settings_screen.dart` (PIN y biometría), `pin_screen.dart` (desbloqueo, captura y "Olvidé mi PIN / Restablecer app" con doble confirmación) y `LockScope`/`LockGate` en `app.dart` |
 
 ## Permisos de cámara (incremento 3)
 
@@ -76,6 +77,34 @@ forma automática: en `lib/` solo `cloud_ocr_adapter.dart` usa red, y con
 toda conexión bloqueada se registra, filtra y resume con SQLite real. La
 prueba E2E en modo avión sobre un teléfono real se hace a mano (no hay
 dispositivo en el entorno de CI).
+
+## PIN y biometría (incremento 7)
+
+El PIN es opcional (D-02) y se activa en **Configuración** (engrane de la
+pantalla principal). Nunca se guarda en SQLite ni en texto plano: en el
+almacén seguro del sistema solo quedan el hash PBKDF2-HMAC-SHA256 (100 000
+iteraciones, sal aleatoria de 16 bytes), `failed_attempts`, `lockout_until`,
+la biometría y la bandera `reset_pending` (RNF-15, RNF-22).
+
+Al generar `android/` e `ios/` hay que agregar, además de lo de la cámara:
+
+- Android: `MainActivity` debe heredar de `FlutterFragmentActivity` (lo pide
+  `local_auth`), el permiso
+  `<uses-permission android:name="android.permission.USE_BIOMETRIC" />` y
+  `minSdkVersion` 23 o mayor.
+- iOS, `ios/Runner/Info.plist`: la llave `NSFaceIDUsageDescription` con el
+  texto "SPENDY usa Face ID para desbloquear la app si tú lo activas."
+
+Con el PIN activo, en Android se aplica `FLAG_SECURE` (la vista de recientes
+sale en blanco y tampoco se permiten capturas de pantalla dentro de la app);
+en iOS se cubre la ventana con un color liso al salir de primer plano
+(RNF-19). Ambas cosas solo se pueden comprobar a mano en un teléfono.
+
+Cambio de huellas (CA-127, AMB-07): al activar la biometría se guardan los
+tipos registrados en el teléfono; si cambian o se borran todas, se pide el
+PIN y la biometría se apaga hasta volver a activarla. Agregar una huella más
+del mismo tipo no se puede detectar sin una llave nativa ligada al registro
+biométrico; queda como mejora.
 
 ## Revisión de calidad
 
