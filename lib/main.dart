@@ -39,6 +39,7 @@ import 'modules/security/biometric_service.dart';
 import 'modules/security/lock_controller.dart';
 import 'modules/security/pin_service.dart';
 import 'modules/security/reset_service.dart';
+import 'modules/security/uptime_clock.dart';
 import 'modules/summary/summary_service.dart';
 
 /// `errores.log` en el almacenamiento privado de la app (RNF-20).
@@ -64,8 +65,12 @@ Future<LockController> _lockController(
   );
   await reset.completePendingReset();
   final lock = LockController(
-    pin: PinService(store: secure, logger: logger),
-    biometrics: BiometricService(store: secure, logger: logger),
+    pin: PinService(store: secure, logger: logger, uptime: platformUptime),
+    biometrics: BiometricService(
+      store: secure,
+      logger: logger,
+      keyGuard: const PlatformBiometricKeyGuard(),
+    ),
     reset: reset,
   );
   await lock.init();
@@ -139,6 +144,7 @@ Future<void> main() async {
     );
     // Limpia capturas temporales y recibos sin registro (TEC-06, RNF-21).
     await receipts.cleanOrphans();
+    await cleanSharedCopies(await getTemporaryDirectory());
     final catalog = CategoryCatalog(CategoryRepository(db), logger);
     final movements = MovementRepository(db, imageStore: store);
     runApp(

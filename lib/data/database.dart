@@ -11,17 +11,19 @@ import 'package:sqflite/sqflite.dart';
 
 import 'migrations/v1_initial.dart';
 import 'migrations/v2_budgets.dart';
+import 'migrations/v3_integrity.dart';
 
 /// Nombre del archivo de la base dentro del almacenamiento privado.
 const String databaseFileName = 'spendy.db';
 
 /// Versión actual del esquema (RNF-27).
-const int schemaVersion = V2Budgets.version;
+const int schemaVersion = V3Integrity.version;
 
 /// Pasos de actualización: la llave es la versión a la que lleva cada uno.
 /// La v1 es la creación inicial y la corre [_onCreate].
 final Map<int, Future<void> Function(Transaction)> _upgrades = {
   V2Budgets.version: V2Budgets.apply,
+  V3Integrity.version: V3Integrity.apply,
 };
 
 /// Base nueva: esquema inicial más todas las migraciones, en una sola

@@ -284,10 +284,13 @@ class MovementService {
     }
   }
 
-  /// Todos los movimientos, del más reciente al más antiguo (RF-07).
-  Future<Result<List<MovementItem>>> list() async {
+  /// Movimientos del más reciente al más antiguo (RF-07). Sin [limit],
+  /// todos; con [limit], solo esa página a partir de [offset] (AUD-18).
+  Future<Result<List<MovementItem>>> list({int? limit, int offset = 0}) async {
     try {
-      final movements = await _repository.fetchAll();
+      final movements = limit == null
+          ? await _repository.fetchAll()
+          : await _repository.fetchPage(limit: limit, offset: offset);
       return Success(movements.map(toMovementItem).toList(growable: false));
     } on Object catch (e) {
       return Failure(await _storageFailure(e, writing: false));

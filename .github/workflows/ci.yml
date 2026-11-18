@@ -23,6 +23,13 @@ jobs:
           cache: true
       - name: SQLite para las pruebas (sqflite_common_ffi)
         run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
+      - name: Sin claves en el código (AUD-01)
+        run: |
+          if git grep -nE 'AIza[0-9A-Za-z_-]{35}|AQ\.[A-Za-z0-9_-]{40,}|BEGIN (RSA |EC )?PRIVATE KEY|storePassword *= *"' -- . ':!*.md' ':!test/'; then
+            echo "Se encontró algo con forma de clave o contraseña."; exit 1
+          fi
+      - name: Calidad (RNF-29, RNF-30)
+        run: python3 tool/check_quality.py
       - name: Dependencias
         run: flutter pub get --enforce-lockfile
       - name: Análisis

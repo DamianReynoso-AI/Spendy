@@ -90,6 +90,12 @@ class MovementListScreen extends StatefulWidget {
 class MovementListScreenState extends State<MovementListScreen> {
   List<MovementItem> _items = const [];
   bool _loading = true;
+
+  /// AUD-18: la lista se carga por páginas para no traer miles de
+  /// movimientos de golpe.
+  static const int pageSize = 200;
+  bool _hasMore = false;
+  bool _loadingMore = false;
   String? _error;
 
   MovementCriteria _criteria = const MovementCriteria();
@@ -128,14 +134,31 @@ class MovementListScreenState extends State<MovementListScreen> {
       _loading = true;
       _error = null;
     });
-    final result = await widget.service.list();
+    final result = await widget.service.list(limit: pageSize);
     if (!mounted || request != _request) return;
     setState(() {
       _loading = false;
       _items = result.valueOrNull ?? const [];
+      _hasMore = _items.length == pageSize;
       _error = result.errorOrNull?.message;
       _result = null;
       _filterWarning = null;
+    });
+  }
+
+  /// Trae la siguiente página al acercarse al final de la lista.
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore || _filtering) return;
+    _loadingMore = true;
+    final request = _request;
+    final result =
+        await widget.service.list(limit: pageSize, offset: _items.length);
+    _loadingMore = false;
+    final page = result.valueOrNull;
+    if (!mounted || request != _request || page == null) return;
+    setState(() {
+      _items = [..._items, ...page];
+      _hasMore = page.length == pageSize;
     });
   }
 
@@ -156,6 +179,7 @@ class MovementListScreenState extends State<MovementListScreen> {
       _error = error?.message;
       _result = result.valueOrNull;
       _items = _result?.items ?? const [];
+      _hasMore = false;
     });
   }
 
@@ -302,6 +326,7 @@ class MovementListScreenState extends State<MovementListScreen> {
       itemBuilder: (_, i) {
         if (i < offset) return headers[i];
         if (!showItems) return _state();
+        if (i - offset >= _items.length - 20) _loadMore();
         final item = _items[i - offset];
         return Column(
           mainAxisSize: MainAxisSize.min,

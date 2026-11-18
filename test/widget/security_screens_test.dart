@@ -66,7 +66,9 @@ void main() {
       catalog: catalog,
       logger: logger,
     );
-    settings = MemorySettings()..values['aviso_privacidad_aceptado'] = 'true';
+    settings = MemorySettings()
+      ..values['aviso_privacidad_aceptado'] = 'true'
+      ..values['aviso_privacidad_version'] = PrivacyTexts.version;
     backend = MemorySecureBackend();
     final store = SecureStore(backend);
     pins = PinService(store: store, logger: logger, hasher: fastHasher());

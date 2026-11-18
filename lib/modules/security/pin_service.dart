@@ -12,6 +12,7 @@ import '../../core/error_logger.dart';
 import '../../core/result.dart';
 import '../../data/secure_store.dart';
 import 'pin_hasher.dart';
+import 'uptime_clock.dart';
 
 /// Mensajes de la protección de acceso, en español de México (RNF-04).
 class PinMessages {
@@ -32,11 +33,17 @@ class PinMessages {
       ? 'PIN incorrecto. Te queda 1 intento.'
       : 'PIN incorrecto. Te quedan $remaining intentos.';
 
-  /// "Espera 30 segundos para volver a intentar." (CA-130).
+  /// "Espera 30 segundos para volver a intentar." (CA-130). Desde un
+  /// minuto se dice en minutos (AUD-04).
   static String locked(Duration remaining) {
     final seconds = (remaining.inMilliseconds / 1000).ceil();
-    return 'Demasiados intentos fallidos. Espera $seconds '
-        '${seconds == 1 ? 'segundo' : 'segundos'} para volver a intentar.';
+    if (seconds < 60) {
+      return 'Demasiados intentos fallidos. Espera $seconds '
+          '${seconds == 1 ? 'segundo' : 'segundos'} para volver a intentar.';
+    }
+    final minutes = (seconds / 60).ceil();
+    return 'Demasiados intentos fallidos. Espera $minutes '
+        '${minutes == 1 ? 'minuto' : 'minutos'} para volver a intentar.';
   }
 }
 
@@ -93,19 +100,21 @@ class PinService {
     required ErrorLogger logger,
     PinHasher? hasher,
     DateTime Function()? clock,
+    UptimeClock? uptime,
   })  : _store = store,
         _logger = logger,
         _hasher = hasher ?? PinHasher(),
-        _clock = clock ?? DateTime.now;
+        _clock = clock ?? DateTime.now,
+        _uptime = uptime ?? noUptime;
 
   static const String module = 'M-09';
-  static final RegExp _pinPattern =
-      RegExp('^[0-9]{${AppConfig.pinLength}}\$');
+  static final RegExp _pinPattern = RegExp('^[0-9]{${AppConfig.pinLength}}\$');
 
   final SecureStore _store;
   final ErrorLogger _logger;
   final PinHasher _hasher;
   final DateTime Function() _clock;
+  final UptimeClock _uptime;
 
   /// `true` si [pin] tiene exactamente 6 dígitos (RF-45, CA-115).
   static bool isValidFormat(String pin) => _pinPattern.hasMatch(pin);
@@ -150,6 +159,7 @@ class PinService {
       if (credential == null) return const PinCheckError(PinMessages.notActive);
       if (await _matches(pin, credential)) {
         await _store.clearAttempts();
+        await _store.clearLockoutCount();
         return const PinAccepted();
       }
       return await _registerFailure();
@@ -161,20 +171,44 @@ class PinService {
 
   /// Tiempo que falta de bloqueo, o `null` si no hay. Si el bloqueo ya
   /// venció, reinicia el contador para dar 5 intentos nuevos (CA-132).
-  /// Si el reloj del teléfono se atrasó, el bloqueo nunca dura más de
-  /// 30 segundos a partir de ahora.
+  ///
+  /// AUD-04: cuenta el que diga más tiempo entre la hora del teléfono y el
+  /// reloj monótono, así que adelantar la hora no quita el bloqueo. Si el
+  /// reloj de la hora se atrasó, el bloqueo nunca dura más que el escalón
+  /// actual a partir de ahora.
   Future<Duration?> lockoutRemaining() async {
     final until = await _store.readLockoutUntil();
     if (until == null) return null;
+    final step = _stepFor(await _store.readLockoutCount());
     final now = _clock().toUtc();
-    if (!now.isBefore(until)) {
+    var byWall = until.difference(now);
+    if (byWall > step) {
+      await _store.writeLockoutUntil(now.add(step));
+      byWall = step;
+    }
+    final byUptime = await _uptimeRemaining(step);
+    final remaining = byUptime != null && byUptime > byWall ? byUptime : byWall;
+    if (remaining <= Duration.zero) {
       await _store.clearAttempts();
       return null;
     }
-    final remaining = until.difference(now);
-    if (remaining <= AppConfig.pinLockout) return remaining;
-    await _store.writeLockoutUntil(now.add(AppConfig.pinLockout));
-    return AppConfig.pinLockout;
+    return remaining;
+  }
+
+  /// Lo que falta según el reloj monótono, o `null` si no hay dato o el
+  /// teléfono se reinició (el reloj volvió a empezar).
+  Future<Duration?> _uptimeRemaining(Duration step) async {
+    final start = await _store.readLockoutUptime();
+    final current = await _uptime();
+    if (start == null || current == null || current < start) return null;
+    return step - Duration(milliseconds: current - start);
+  }
+
+  /// Duración del bloqueo número [count] (1 = el primero).
+  static Duration _stepFor(int count) {
+    const steps = AppConfig.pinLockoutSteps;
+    final index = (count - 1).clamp(0, steps.length - 1);
+    return steps[index];
   }
 
   /// Cambia el PIN (RF-49; CA-133 a CA-136). Primero revisa que el nuevo
@@ -243,16 +277,20 @@ class PinService {
     return constantTimeEquals(hash, credential.hash);
   }
 
-  /// Suma un fallo; al quinto consecutivo bloquea 30 s (CA-129, CA-130).
+  /// Suma un fallo; al quinto consecutivo bloquea (CA-129, CA-130). El
+  /// primer bloqueo dura 30 s y los siguientes, más (AUD-04).
   Future<PinCheck> _registerFailure() async {
     final failed = await _store.readFailedAttempts() + 1;
     await _store.writeFailedAttempts(failed);
     if (failed < AppConfig.maxPinAttempts) {
       return PinRejected(AppConfig.maxPinAttempts - failed);
     }
-    await _store
-        .writeLockoutUntil(_clock().toUtc().add(AppConfig.pinLockout));
-    return const PinLocked(AppConfig.pinLockout);
+    final count = await _store.readLockoutCount() + 1;
+    final step = _stepFor(count);
+    await _store.writeLockoutCount(count);
+    await _store.writeLockoutUptime(await _uptime());
+    await _store.writeLockoutUntil(_clock().toUtc().add(step));
+    return PinLocked(step);
   }
 
   Result<void> _checkFailure(PinCheck check) => Failure(

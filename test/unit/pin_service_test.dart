@@ -132,7 +132,14 @@ void main() {
 
     test('CA-115: menos, más dígitos o letras se rechazan con el formato',
         () async {
-      for (final bad in ['12345', '1234567', '12a456', '', ' 12345', '12345٦']) {
+      for (final bad in [
+        '12345',
+        '1234567',
+        '12a456',
+        '',
+        ' 12345',
+        '12345٦'
+      ]) {
         final result = await pins.activate(bad, bad);
         expect(result.errorOrNull?.message, PinMessages.format, reason: bad);
       }
@@ -167,15 +174,14 @@ void main() {
       await pins.activate('482913', '482913');
       final dump = backend.values.values.join('|');
       expect(dump, isNot(contains('482913')));
-      final credential = PinCredential.decode(
-          backend.values[SecureStore.pinCredentialKey])!;
+      final credential =
+          PinCredential.decode(backend.values[SecureStore.pinCredentialKey])!;
       expect(credential.salt, hasLength(AppConfig.pinSaltBytes));
       expect(credential.hash, hasLength(32));
       expect(credential.iterations, 1000);
     });
 
-    test('CA-118: dos activaciones del mismo PIN usan sal distinta',
-        () async {
+    test('CA-118: dos activaciones del mismo PIN usan sal distinta', () async {
       await pins.activate('482913', '482913');
       final first = backend.values[SecureStore.pinCredentialKey];
       await store.clearSecurity();
@@ -209,8 +215,10 @@ void main() {
         remaining.add((check as PinRejected).remainingAttempts);
       }
       expect(remaining, [4, 3, 2, 1]);
-      expect(const PinRejected(3).message, 'PIN incorrecto. Te quedan 3 intentos.');
-      expect(const PinRejected(1).message, 'PIN incorrecto. Te queda 1 intento.');
+      expect(const PinRejected(3).message,
+          'PIN incorrecto. Te quedan 3 intentos.');
+      expect(
+          const PinRejected(1).message, 'PIN incorrecto. Te queda 1 intento.');
     });
 
     test('CA-130: al quinto fallo se bloquea 30 segundos', () async {
@@ -233,8 +241,7 @@ void main() {
       expect(await reopened.verify('123456'), isA<PinLocked>());
     });
 
-    test('CA-131 / RNF-22: los fallos sin bloqueo también persisten',
-        () async {
+    test('CA-131 / RNF-22: los fallos sin bloqueo también persisten', () async {
       await failTimes(3);
       final reopened = newPinService();
       final check = await reopened.verify('000000');
@@ -283,8 +290,8 @@ void main() {
     setUp(() => pins.activate('123456', '123456'));
 
     test('CA-133: con el PIN actual se cambia', () async {
-      expect((await pins.change('123456', '654321', '654321')).isSuccess,
-          isTrue);
+      expect(
+          (await pins.change('123456', '654321', '654321')).isSuccess, isTrue);
       expect(await pins.verify('654321'), isA<PinAccepted>());
       expect(await pins.verify('123456'), isA<PinRejected>());
     });
@@ -327,7 +334,8 @@ void main() {
         await pins.disable('000000');
       }
       final fifth = await pins.change('000000', '654321', '654321');
-      expect(fifth.errorOrNull?.message, PinMessages.locked(AppConfig.pinLockout));
+      expect(
+          fifth.errorOrNull?.message, PinMessages.locked(AppConfig.pinLockout));
       expect(await pins.lockoutRemaining(), AppConfig.pinLockout);
       final blocked = await pins.disable('123456');
       expect(blocked.isSuccess, isFalse);
@@ -395,18 +403,20 @@ void main() {
 
     test('CA-126: sin sensor o sin huellas la opción se explica', () async {
       device.available = BiometricAvailability.noHardware;
-      expect(BiometricService.unavailableReason(await biometrics.availability()),
+      expect(
+          BiometricService.unavailableReason(await biometrics.availability()),
           BiometricMessages.noHardware);
-      expect(BiometricService.unavailableReason(BiometricAvailability.notEnrolled),
+      expect(
+          BiometricService.unavailableReason(BiometricAvailability.notEnrolled),
           BiometricMessages.notEnrolled);
-      expect(BiometricService.unavailableReason(BiometricAvailability.available),
+      expect(
+          BiometricService.unavailableReason(BiometricAvailability.available),
           isNull);
       expect((await biometrics.enable()).isSuccess, isFalse);
       expect(device.prompts, 0);
     });
 
-    test('CA-127: si cambian las huellas registradas se pide el PIN',
-        () async {
+    test('CA-127: si cambian las huellas registradas se pide el PIN', () async {
       await biometrics.enable();
       device.enrolled = 'face,fingerprint';
       final unlock = await biometrics.unlock();
@@ -512,8 +522,7 @@ void main() {
       expect(lock.locked, isFalse);
     });
 
-    test('CA-123 / RNF-19: con PIN se oculta el contenido al salir',
-        () async {
+    test('CA-123 / RNF-19: con PIN se oculta el contenido al salir', () async {
       await pins.activate('123456', '123456');
       await lock.init();
       expect(shield.calls.last, isTrue);
@@ -610,7 +619,8 @@ void main() {
     test('CA-137: borra base, recibos y almacén seguro', () async {
       expect((await reset.resetAll()).isSuccess, isTrue);
       await expectEmpty();
-      expect(File(p.join(images.receiptsDir.path, noMediaFileName)).existsSync(),
+      expect(
+          File(p.join(images.receiptsDir.path, noMediaFileName)).existsSync(),
           isTrue);
     });
 
@@ -650,8 +660,7 @@ BEGIN SELECT RAISE(ABORT, 'falla simulada'); END''');
       await expectEmpty();
     });
 
-    test('CA-140: el aviso de privacidad vuelve a estar sin aceptar',
-        () async {
+    test('CA-140: el aviso de privacidad vuelve a estar sin aceptar', () async {
       expect(await settings.getSetting('aviso_privacidad_aceptado'), 'true');
       await reset.resetAll();
       expect(await settings.getSetting('aviso_privacidad_aceptado'), isNull);
@@ -719,6 +728,7 @@ Future<void> _seedData(
     'capturado_en': '2026-11-20T10:00:00',
   });
   await settings.setSetting('aviso_privacidad_aceptado', 'true');
+  await settings.setSetting('aviso_privacidad_version', '2');
 }
 
 List<File> _files(Directory dir) => dir

@@ -6,13 +6,29 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-// Llave de firma de release: android/key.properties (no se versiona). Si no
-// existe, el release se firma con la llave de depuración (solo pruebas).
+// Llave de firma de release: android/key.properties (no se versiona; ver
+// docs/firma_release.md). AUD-02: sin esa llave el release NO se compila,
+// porque un APK firmado con la llave de depuración no se puede instalar
+// encima del anterior (hay que desinstalar y se pierden los datos) ni
+// publicar en Google Play. Solo para pruebas internas se puede firmar con
+// la de depuración exportando SPENDY_ALLOW_DEBUG_SIGNING=1.
 val keystoreProperties = Properties().apply {
     val file = rootProject.file("key.properties")
     if (file.exists()) file.inputStream().use { load(it) }
 }
 val hasReleaseKey = keystoreProperties.getProperty("storeFile") != null
+val allowDebugSigning = System.getenv("SPENDY_ALLOW_DEBUG_SIGNING") == "1"
+
+gradle.taskGraph.whenReady {
+    val buildsRelease = allTasks.any { it.name.contains("Release") }
+    if (buildsRelease && !hasReleaseKey && !allowDebugSigning) {
+        throw GradleException(
+            "Falta android/key.properties: el release debe firmarse con la " +
+                "llave de Spendy (docs/firma_release.md). Para una prueba " +
+                "interna, exporta SPENDY_ALLOW_DEBUG_SIGNING=1.",
+        )
+    }
+}
 
 android {
     namespace = "mx.zenorbak.spendy"

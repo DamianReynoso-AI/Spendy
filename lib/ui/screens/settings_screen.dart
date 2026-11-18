@@ -10,6 +10,7 @@ library;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
+import '../../config/privacy_texts.dart';
 import '../../core/result.dart';
 import '../../modules/backup/backup_service.dart';
 import '../../modules/budgets/budget_service.dart';
@@ -20,6 +21,7 @@ import '../../modules/security/lock_controller.dart';
 import '../theme/spendy_theme.dart';
 import 'budget_screen.dart';
 import 'pin_screen.dart';
+import 'privacy_notice_screen.dart';
 
 /// Textos de Configuración.
 class SettingsTexts {
@@ -160,6 +162,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ..._ocrTiles(),
       ..._budgetTiles(),
       ..._backupTiles(),
+      const _Section('Privacidad'),
+      ListTile(
+        key: const Key('privacy_notice'),
+        leading: const Icon(Icons.privacy_tip_outlined),
+        title: const Text(PrivacyTexts.title),
+        subtitle: const Text('Qué datos guarda SPENDY, a quién se envían y '
+            'cómo ejercer tus derechos.'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => Navigator.of(context).push<void>(MaterialPageRoute(
+          builder: (_) => const PrivacyNoticeScreen(),
+        )),
+      ),
       const SizedBox(height: 24),
     ];
   }
@@ -412,7 +426,11 @@ class _KeyDialogState extends State<_KeyDialog> {
             children: [
               const Text('1. Entra a aistudio.google.com con tu cuenta de '
                   'Google.\n2. Toca "Get API key" y copia la clave.\n'
-                  '3. Pégala aquí. Se guarda cifrada solo en este teléfono.'),
+                  '3. Pégala aquí. Se guarda cifrada solo en este teléfono.\n\n'
+                  'Al guardarla aceptas que la foto de cada recibo que '
+                  'escanees se envíe a Google (Gemini). Con el plan gratuito, '
+                  'Google puede usarla para mejorar sus productos. Detalles en '
+                  'Ajustes > Aviso de privacidad.'),
               const SizedBox(height: 12),
               TextField(
                 key: const Key('gemini_key_field'),

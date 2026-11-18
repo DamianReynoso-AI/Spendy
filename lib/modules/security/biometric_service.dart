@@ -3,6 +3,7 @@
 /// AMB-07).
 library;
 
+import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
 
 import '../../core/error_logger.dart';
@@ -32,6 +33,57 @@ abstract interface class BiometricAuthenticator {
   Future<String> enrollment();
 
   Future<BiometricOutcome> authenticate(String reason);
+}
+
+/// AUD-14: llave del Keystore ligada al registro biométrico. Android la
+/// invalida si se agrega o quita una huella o un rostro, cosa que la lista
+/// de tipos de [BiometricAuthenticator.enrollment] no nota.
+abstract interface class BiometricKeyGuard {
+  /// Crea (o recrea) la llave al activar la biometría.
+  Future<void> create();
+
+  /// `true` si sigue válida, `false` si cambió el registro o no existe,
+  /// `null` si no se puede saber (sin Keystore, pruebas).
+  Future<bool?> isValid();
+
+  Future<void> delete();
+}
+
+/// Llave real por el canal de [MainActivity]. Los errores se tratan como
+/// "no se puede saber"; nunca rompen el desbloqueo.
+class PlatformBiometricKeyGuard implements BiometricKeyGuard {
+  const PlatformBiometricKeyGuard();
+
+  static const MethodChannel _channel =
+      MethodChannel('mx.zenorbak.spendy/biometric_key');
+
+  @override
+  Future<void> create() => _call('create');
+
+  @override
+  Future<bool?> isValid() => _call('isValid');
+
+  @override
+  Future<void> delete() => _call('delete');
+
+  Future<bool?> _call(String method) async {
+    try {
+      return await _channel.invokeMethod<bool>(method);
+    } on Object {
+      return null;
+    }
+  }
+}
+
+/// Sin Keystore: solo se compara la lista de tipos (pruebas, escritorio).
+class NoBiometricKeyGuard implements BiometricKeyGuard {
+  const NoBiometricKeyGuard();
+  @override
+  Future<void> create() async {}
+  @override
+  Future<bool?> isValid() async => null;
+  @override
+  Future<void> delete() async {}
 }
 
 /// Adaptador real con `local_auth` (BiometricPrompt / LocalAuthentication).
@@ -136,15 +188,18 @@ class BiometricService {
     required SecureStore store,
     required ErrorLogger logger,
     BiometricAuthenticator? authenticator,
+    BiometricKeyGuard keyGuard = const NoBiometricKeyGuard(),
   })  : _store = store,
         _logger = logger,
-        _auth = authenticator ?? LocalAuthAuthenticator();
+        _auth = authenticator ?? LocalAuthAuthenticator(),
+        _keyGuard = keyGuard;
 
   static const String module = 'M-09';
 
   final SecureStore _store;
   final ErrorLogger _logger;
   final BiometricAuthenticator _auth;
+  final BiometricKeyGuard _keyGuard;
 
   Future<BiometricAvailability> availability() => _auth.availability();
 
@@ -179,6 +234,7 @@ class BiometricService {
         AppError(type: ErrorType.validation, message: BiometricMessages.failed),
       );
     }
+    await _keyGuard.create();
     return _save(await _auth.enrollment());
   }
 
@@ -207,6 +263,7 @@ class BiometricService {
       if (await _auth.availability() != BiometricAvailability.available) {
         return true;
       }
+      if (await _keyGuard.isValid() == false) return true;
       return await _auth.enrollment() != saved;
     } on Object {
       return true;
@@ -214,6 +271,7 @@ class BiometricService {
   }
 
   Future<Result<void>> _save(String? enrollment) async {
+    if (enrollment == null) await _keyGuard.delete();
     try {
       await _store.writeBiometricEnrollment(enrollment);
       return const Success(null);

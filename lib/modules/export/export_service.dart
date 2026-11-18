@@ -114,3 +114,21 @@ class ExportService {
     );
   }
 }
+
+/// Carpetas de la caché donde se dejan los archivos para compartir: los
+/// resúmenes (M-08) y las copias de seguridad (M-16).
+const List<String> sharedCopyFolders = ['exportaciones', 'respaldos'];
+
+/// AUD-16: borra los resúmenes y copias que se generaron para compartir en
+/// sesiones anteriores. Se llama al abrir la app, cuando ya nadie está
+/// leyendo esos archivos. Nunca falla: es limpieza.
+Future<void> cleanSharedCopies(Directory cache) async {
+  for (final name in sharedCopyFolders) {
+    try {
+      final dir = Directory(p.join(cache.path, name));
+      if (await dir.exists()) await dir.delete(recursive: true);
+    } on Object {
+      // La caché se limpiará en otro arranque o la limpia el sistema.
+    }
+  }
+}

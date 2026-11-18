@@ -65,6 +65,7 @@ final RegExp _textMonth = RegExp(
   r'\b(\d{1,2})[\s/\-.]*(?:de\s+)?(ene|feb|mar|abr|may|jun|jul|ago|sep|set|oct|nov|dic)'
   r'[a-z]*\.?[\s/\-.,]*(?:de\s+)?(\d{4}|\d{2})\b',
 );
+
 /// "total", también cuando el OCR lee la O como cero ("T0TAL").
 final RegExp _totalWord = RegExp(r'\bt[o0]tal\b');
 final RegExp _notTotal =

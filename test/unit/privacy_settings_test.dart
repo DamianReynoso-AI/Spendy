@@ -80,8 +80,8 @@ void main() {
     expect(text, contains('en este mismo teléfono con Google ML Kit'));
     expect(text, contains('La foto no se envía a ningún servidor'));
     // Gemini es opcional y lo activa la persona con su propia clave.
-    expect(text, contains('activas la lectura con Gemini'));
-    expect(text, contains('Puedes quitar la clave'));
+    expect(text, contains('Solo si en Ajustes agregas tu propia'));
+    expect(text, contains('Quitar la clave detiene los envíos'));
   });
 
   test('RNF-17: con OCR en la nube, el aviso nombra al proveedor', () {
