@@ -18,7 +18,7 @@ desktop.ini
 .pub/
 build/
 coverage/
-pubspec.lock
+# pubspec.lock se versiona (app, no paquete): compilaciones reproducibles
 
 # Android / iOS generados
 **/android/local.properties

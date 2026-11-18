@@ -93,8 +93,9 @@ void main() {
 
   Future<void> acceptPrivacy(WidgetTester tester) async {
     final accept = find.text(PrivacyTexts.acceptButton);
-    await tester.scrollUntilVisible(accept, 200,
-        scrollable: find.byType(Scrollable).first);
+    // El aviso completo (AUD-07) mide varias pantallas al 200 %.
+    await tester.scrollUntilVisible(accept, 500,
+        maxScrolls: 100, scrollable: find.byType(Scrollable).first);
     // Que quede completo en pantalla, no solo asomado en el borde.
     await tester.ensureVisible(accept);
     await tester.pumpAndSettle();
@@ -132,7 +133,8 @@ void main() {
     await tester.tap(find.byTooltip('Resumen anual'));
     await tester.pumpAndSettle();
     expectNoOverflow(tester, '$label · resumen anual');
-    await back(tester);
+    await tester.tap(find.text('Inicio'));
+    await tester.pumpAndSettle();
     expectNoOverflow(tester, '$label · regreso a la lista');
   }
 

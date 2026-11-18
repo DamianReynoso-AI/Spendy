@@ -2,6 +2,7 @@
 /// CA-141 a CA-143).
 library;
 
+import '../../config/privacy_texts.dart';
 import '../../core/error_logger.dart';
 import '../../core/result.dart';
 import '../../data/repositories/settings_repository.dart';
@@ -25,6 +26,10 @@ class OnboardingService {
   static const String acceptedKey = 'aviso_privacidad_aceptado';
   static const String acceptedValue = 'true';
 
+  /// Versión del aviso que se aceptó (AUD-07). Si no coincide con
+  /// [PrivacyTexts.version], el aviso se vuelve a mostrar.
+  static const String versionKey = 'aviso_privacidad_version';
+
   final SettingsRepository _settings;
   final ErrorLogger _logger;
 
@@ -32,7 +37,8 @@ class OnboardingService {
   /// duda se vuelve a mostrar el aviso (CA-142).
   Future<bool> isAccepted() async {
     try {
-      return await _settings.getSetting(acceptedKey) == acceptedValue;
+      return await _settings.getSetting(acceptedKey) == acceptedValue &&
+          await _settings.getSetting(versionKey) == PrivacyTexts.version;
     } on Object catch (e) {
       await _logger.log(type: ErrorType.storageRead, module: module, cause: e);
       return false;
@@ -43,6 +49,7 @@ class OnboardingService {
   Future<Result<void>> accept() async {
     try {
       await _settings.setSetting(acceptedKey, acceptedValue);
+      await _settings.setSetting(versionKey, PrivacyTexts.version);
       return const Success(null);
     } on Object catch (e) {
       final error = translateStorageError(e, writing: true);

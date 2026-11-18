@@ -8,9 +8,13 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import 'modules/backup/backup_service.dart';
+import 'modules/budgets/budget_service.dart';
 import 'modules/categories/category_catalog.dart';
 import 'modules/export/export_service.dart';
+import 'modules/insights/insights_service.dart';
 import 'modules/movements/movement_service.dart';
+import 'modules/ocr/ocr_key_service.dart';
 import 'modules/privacy/onboarding_service.dart';
 import 'modules/receipts/camera_service.dart';
 import 'modules/receipts/receipt_service.dart';
@@ -59,6 +63,10 @@ class SpendyApp extends StatelessWidget {
     this.exports,
     this.filter,
     this.lock,
+    this.budgets,
+    this.insights,
+    this.backup,
+    this.ocrKey,
   });
 
   final MovementService service;
@@ -75,6 +83,13 @@ class SpendyApp extends StatelessWidget {
   /// Protección con PIN (incremento 7). Sin ella no hay bloqueo.
   final LockController? lock;
 
+  /// Presupuestos (M-14), indicadores (M-15), copia de seguridad (M-16) y
+  /// clave de Gemini (M-05). Opcionales para las pruebas de pantallas.
+  final BudgetService? budgets;
+  final InsightsService? insights;
+  final BackupService? backup;
+  final OcrKeyService? ocrKey;
+
   Widget _home() => SpendyShell(
         service: service,
         catalog: catalog,
@@ -84,6 +99,10 @@ class SpendyApp extends StatelessWidget {
         exports: exports,
         filter: filter,
         lock: lock,
+        budgets: budgets,
+        insights: insights,
+        backup: backup,
+        ocrKey: ocrKey,
       );
 
   @override
@@ -217,7 +236,8 @@ class _PlainCover extends StatelessWidget {
           ),
         ),
         child: Center(
-          child: Icon(Icons.lock_outline, size: 56, color: SpendyPalette.onNavy),
+          child:
+              Icon(Icons.lock_outline, size: 56, color: SpendyPalette.onNavy),
         ),
       );
 }

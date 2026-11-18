@@ -9,8 +9,10 @@ import 'package:flutter/material.dart';
 
 import '../../core/formatters.dart';
 
+import '../../modules/budgets/budget_service.dart';
 import '../../modules/categories/category_catalog.dart';
 import '../../modules/export/export_service.dart';
+import '../../modules/insights/insights_service.dart';
 import '../../modules/movements/movement_service.dart';
 import '../../modules/receipts/camera_service.dart';
 import '../../modules/receipts/receipt_service.dart';
@@ -18,9 +20,9 @@ import '../../modules/search/movement_filter.dart';
 import '../../modules/security/lock_controller.dart';
 import '../../modules/summary/summary_service.dart';
 import '../theme/spendy_theme.dart';
+import '../widgets/budget_cards.dart';
+import 'budget_screen.dart';
 import 'movement_list_screen.dart';
-import 'settings_screen.dart';
-import 'summary_screen.dart';
 
 /// Pantalla principal. El balance se vuelve a calcular cada vez que la
 /// lista avisa que se creó, editó o eliminó un movimiento (CA-001, CA-007,
@@ -36,6 +38,8 @@ class HomeScreen extends StatefulWidget {
     this.exports,
     this.filter,
     this.lock,
+    this.budgets,
+    this.insights,
   });
 
   final MovementService service;
@@ -53,6 +57,12 @@ class HomeScreen extends StatefulWidget {
   /// Configuración del PIN y la biometría (incremento 7).
   final LockController? lock;
 
+  /// Presupuestos por categoría (M-14).
+  final BudgetService? budgets;
+
+  /// Indicadores del mes (M-15).
+  final InsightsService? insights;
+
   @override
   State<HomeScreen> createState() => HomeScreenState();
 }
@@ -62,6 +72,12 @@ class HomeScreenState extends State<HomeScreen> {
   final GlobalKey<MovementListScreenState> _list = GlobalKey();
   MonthlyBalance? _balance;
   String? _error;
+  BudgetOverview? _budgets;
+  MonthInsights? _insights;
+
+  /// Estado de cada presupuesto en la lectura anterior, para avisar solo
+  /// cuando cambia a "cerca del límite" o "excedido".
+  Map<int, BudgetStatus>? _lastStatus;
 
   /// Cuenta las peticiones para que una respuesta vieja no pise a una
   /// nueva si llegan en otro orden.
@@ -76,47 +92,60 @@ class HomeScreenState extends State<HomeScreen> {
   Future<void> _loadBalance() async {
     final request = ++_request;
     final result = await widget.service.currentMonthBalance();
+    final budgets = await widget.budgets?.currentMonth();
+    final insights = await widget.insights?.currentMonth();
     if (!mounted || request != _request) return;
+    final overview = budgets?.valueOrNull;
     setState(() {
       _balance = result.valueOrNull;
       _error = result.errorOrNull?.message;
+      _budgets = overview;
+      _insights = insights?.valueOrNull;
     });
+    if (overview != null) _alertBudgets(overview);
+  }
+
+  /// Avisa con un mensaje cuando un presupuesto llega al 80 % o se pasa
+  /// por un movimiento que se acaba de guardar.
+  void _alertBudgets(BudgetOverview overview) {
+    final previous = _lastStatus;
+    _lastStatus = {for (final l in overview.lines) l.categoryId: l.status};
+    if (previous == null) return;
+    for (final line in overview.lines) {
+      final before = previous[line.categoryId] ?? BudgetStatus.ok;
+      if (line.status.index <= before.index) continue;
+      final percent = (line.ratio * 100).round();
+      final text = line.status == BudgetStatus.exceeded
+          ? 'Te pasaste del presupuesto de ${line.categoryName}: '
+              '${budgetLineText(line).toLowerCase()}.'
+          : 'Ya usaste el $percent % del presupuesto de '
+              '${line.categoryName}.';
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(
+          content: Text(text),
+          backgroundColor: budgetColor(context, line.status),
+        ));
+      return;
+    }
+  }
+
+  Future<void> _editBudgets() async {
+    final budgets = widget.budgets;
+    if (budgets == null) return;
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => BudgetScreen(budgets: budgets, catalog: widget.catalog),
+      ),
+    );
+    if (saved == true) {
+      _lastStatus = null; // un límite nuevo no debe disparar avisos
+      await _loadBalance();
+    }
   }
 
   /// "Escanear recibo" desde la barra inferior.
   Future<void> scanReceipt() async => _list.currentState?.scanReceipt();
-
-  void _openSummary() {
-    Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (_) => SummaryScreen(
-          summary: widget.summary!,
-          exports: widget.exports!,
-        ),
-      ),
-    );
-  }
-
-  void _openSettings() {
-    Navigator.of(context).push<void>(
-      MaterialPageRoute(builder: (_) => SettingsScreen(lock: widget.lock!)),
-    );
-  }
-
-  List<Widget> _actions() => [
-        if (widget.summary != null && widget.exports != null)
-          IconButton(
-            onPressed: _openSummary,
-            icon: const Icon(Icons.pie_chart_outline),
-            tooltip: 'Resumen anual',
-          ),
-        if (widget.lock != null)
-          IconButton(
-            onPressed: _openSettings,
-            icon: const Icon(Icons.settings_outlined),
-            tooltip: 'Configuración',
-          ),
-      ];
 
   Widget _header() => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -129,6 +158,9 @@ class HomeScreenState extends State<HomeScreen> {
                 ? scanReceipt
                 : null,
           ),
+          if (_insights case final insights?) InsightsCard(insights: insights),
+          if (_budgets case final budgets?)
+            BudgetsCard(overview: budgets, onEdit: _editBudgets),
           const _SectionTitle('Movimientos recientes'),
         ],
       );
@@ -138,7 +170,6 @@ class HomeScreenState extends State<HomeScreen> {
     return MovementListScreen(
       key: _list,
       title: const _Greeting(),
-      actions: _actions(),
       service: widget.service,
       catalog: widget.catalog,
       header: _header(),

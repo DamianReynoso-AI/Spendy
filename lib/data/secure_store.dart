@@ -127,6 +127,17 @@ class SecureStore {
   static const String biometricEnabledKey = 'biometric_enabled';
   static const String resetPendingKey = 'reset_pending';
 
+  /// AUD-04: bloqueos seguidos sin un PIN correcto (decide cuánto dura el
+  /// siguiente) y reloj monótono del teléfono al empezar el bloqueo actual
+  /// (para que adelantar la hora no lo quite).
+  static const String lockoutCountKey = 'lockout_count';
+  static const String lockoutUptimeKey = 'lockout_uptime';
+
+  /// Clave de la API de Gemini que captura la persona en Ajustes (TEC-01:
+  /// nunca va dentro del APK). No es parte de la seguridad del PIN: no la
+  /// borra desactivar el PIN, solo el restablecimiento total.
+  static const String geminiApiKeyKey = 'gemini_api_key';
+
   /// Claves que borra el restablecimiento total. La bandera de
   /// restablecimiento no está aquí: se borra al final, aparte.
   static const List<String> securityKeys = [
@@ -134,6 +145,8 @@ class SecureStore {
     failedAttemptsKey,
     lockoutUntilKey,
     biometricEnabledKey,
+    lockoutCountKey,
+    lockoutUptimeKey,
   ];
 
   Future<PinCredential?> readCredential() async =>
@@ -160,11 +173,30 @@ class SecureStore {
   Future<void> writeLockoutUntil(DateTime until) => _backend.write(
       lockoutUntilKey, '${until.toUtc().millisecondsSinceEpoch}');
 
-  /// Reinicia el contador y quita el bloqueo (CA-128, CA-132).
+  /// Reinicia el contador y quita el bloqueo (CA-128, CA-132). No olvida
+  /// cuántos bloqueos van: eso solo lo borra [clearLockoutCount].
   Future<void> clearAttempts() async {
     await _backend.delete(lockoutUntilKey);
+    await _backend.delete(lockoutUptimeKey);
     await _backend.delete(failedAttemptsKey);
   }
+
+  Future<int> readLockoutCount() async =>
+      int.tryParse(await _backend.read(lockoutCountKey) ?? '') ?? 0;
+
+  Future<void> writeLockoutCount(int count) =>
+      _backend.write(lockoutCountKey, '$count');
+
+  /// Tras un PIN correcto el siguiente bloqueo vuelve a durar 30 s.
+  Future<void> clearLockoutCount() => _backend.delete(lockoutCountKey);
+
+  /// Milisegundos del reloj monótono al empezar el bloqueo, o `null`.
+  Future<int?> readLockoutUptime() async =>
+      int.tryParse(await _backend.read(lockoutUptimeKey) ?? '');
+
+  Future<void> writeLockoutUptime(int? ms) => ms == null
+      ? _backend.delete(lockoutUptimeKey)
+      : _backend.write(lockoutUptimeKey, '$ms');
 
   /// Biometría activada: guarda la huella digital del registro biométrico
   /// del teléfono al activarla (tipos registrados), para notar si cambió
@@ -184,6 +216,12 @@ class SecureStore {
       await _backend.delete(key);
     }
   }
+
+  Future<String?> readGeminiApiKey() => _backend.read(geminiApiKeyKey);
+
+  Future<void> writeGeminiApiKey(String? key) => key == null
+      ? _backend.delete(geminiApiKeyKey)
+      : _backend.write(geminiApiKeyKey, key);
 
   Future<bool> readResetPending() async =>
       await _backend.read(resetPendingKey) == 'true';

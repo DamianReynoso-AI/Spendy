@@ -100,6 +100,16 @@ JOIN categoria c ON c.id = m.categoria_id''';
   }
 
   /// Todos los movimientos en el orden de la lista (RF-07).
+  /// Una página de la lista, en el mismo orden que [fetchAll] (AUD-18).
+  Future<List<Movement>> fetchPage({
+    required int limit,
+    required int offset,
+  }) async {
+    final rows =
+        await _db.rawQuery('$listSql\nLIMIT ? OFFSET ?', [limit, offset]);
+    return rows.map(Movement.fromRow).toList(growable: false);
+  }
+
   Future<List<Movement>> fetchAll() async {
     final rows = await _db.rawQuery(listSql);
     return rows.map(Movement.fromRow).toList(growable: false);

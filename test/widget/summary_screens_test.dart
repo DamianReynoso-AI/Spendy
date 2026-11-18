@@ -140,11 +140,22 @@ void main() {
       await tapText(tester, PrivacyTexts.acceptButton);
       expect(find.text('Movimientos'), findsOneWidget);
       expect(settings.values[OnboardingService.acceptedKey], 'true');
+      expect(
+          settings.values[OnboardingService.versionKey], PrivacyTexts.version);
+    });
+
+    testWidgets('AUD-07: si el aviso cambió de versión se vuelve a mostrar',
+        (tester) async {
+      settings.values[OnboardingService.acceptedKey] = 'true';
+      settings.values[OnboardingService.versionKey] = '1';
+      await pumpApp(tester, onboarding: true);
+      expect(find.text(PrivacyTexts.title), findsOneWidget);
     });
 
     testWidgets('CA-143: aceptado, no vuelve a aparecer al abrir de nuevo',
         (tester) async {
       settings.values[OnboardingService.acceptedKey] = 'true';
+      settings.values[OnboardingService.versionKey] = PrivacyTexts.version;
       await pumpApp(tester, onboarding: true);
       expect(find.text(PrivacyTexts.title), findsNothing);
       expect(find.text('Movimientos'), findsOneWidget);

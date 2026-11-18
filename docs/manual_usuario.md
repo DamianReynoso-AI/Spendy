@@ -20,8 +20,12 @@ Todo lo que registras se queda **solo en tu teléfono**. Nadie más lo ve.
 5. Escanear un recibo con la cámara
 6. Buscar y filtrar movimientos
 7. Ver el resumen del año y exportarlo
-8. Proteger la app con un PIN (próximamente)
+8. Proteger la app con un PIN
 9. Si algo sale mal
+10. Presupuestos por categoría
+11. "Tu mes": cómo vas contra el mes pasado
+12. Leer recibos con Gemini
+13. Copia de seguridad
 
 Palabras que vas a ver:
 
@@ -169,7 +173,7 @@ elegiste).
 
 <img src="img/manual/09_resumen_anual.png" alt="Resumen anual con botones de exportar" width="260">
 
-## 8. Proteger la app con un PIN (próximamente)
+## 8. Proteger la app con un PIN
 
 > **Esta función llega en la versión 0.7.0**, después de la entrega del
 > 23/11/2026. Esta sección se completará con sus capturas cuando esté lista.
@@ -203,3 +207,51 @@ desbloqueo y restablecer.]_
 **Importante:** SPENDY no hace respaldos en la nube. Si desinstalas la app o
 cambias de teléfono, tus datos se borran. Exporta tu resumen cuando lo
 necesites.
+
+## 10. Presupuestos por categoría
+
+1. En **Inicio**, en la tarjeta **Presupuestos**, toca **Crear** (o **Editar**).
+   También está en **Ajustes → Presupuestos mensuales**.
+2. Escribe cuánto quieres gastar como máximo al mes en cada categoría. Deja
+   vacío lo que no quieras controlar.
+3. Toca **Guardar**.
+
+En Inicio verás una barra por categoría: verde mientras vas bien, amarilla
+desde el 80 % y roja cuando te pasas. Al guardar un gasto que te acerca o te
+pasa del límite, la app te avisa con un mensaje.
+
+## 11. "Tu mes": cómo vas contra el mes pasado
+
+La tarjeta **Tu mes** de Inicio te dice:
+
+- Si gastas más o menos que **a estas alturas** del mes pasado (compara del
+  día 1 al día de hoy, para que sea justo).
+- En qué categoría gastas más.
+- Cuánto gastarías al cierre del mes si sigues al mismo ritmo.
+
+## 12. Leer recibos con Gemini
+
+Sin hacer nada, la app lee los recibos dentro del teléfono. Para que los lea
+mejor con Gemini de Google:
+
+1. Entra a <https://aistudio.google.com> con tu cuenta de Google y toca
+   **Get API key**. Copia la clave.
+2. En SPENDY ve a **Ajustes → Leer recibos con Gemini**, pega la clave y toca
+   **Guardar**.
+
+La clave se guarda cifrada solo en tu teléfono. Puedes quitarla en el mismo
+lugar con **Quitar clave**.
+
+## 13. Copia de seguridad
+
+**Crear una copia:** ve a **Ajustes → Crear copia de seguridad**, escribe una
+contraseña de al menos 8 caracteres (dos veces) y elige dónde guardar el
+archivo (por ejemplo, Google Drive o enviártelo por correo). La copia incluye
+tus movimientos, fotos de recibos y presupuestos, cifrados con tu contraseña.
+
+**Restaurar:** en el teléfono nuevo ve a **Ajustes → Restaurar copia de
+seguridad**, elige el archivo `.spendy` y escribe la contraseña. **Todo lo que
+haya en ese teléfono se reemplaza** por lo de la copia.
+
+> Si olvidas la contraseña de la copia, no hay forma de abrirla. Guárdala en un
+> lugar seguro.

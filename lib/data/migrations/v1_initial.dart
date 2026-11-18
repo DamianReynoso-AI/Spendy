@@ -62,19 +62,22 @@ CREATE TABLE ajuste (
 
   /// Ejecuta la migración completa dentro de una transacción: si algo
   /// falla, la base queda vacía y no a medias.
-  static Future<void> apply(Database db, int version) async {
-    await db.transaction((txn) async {
-      for (final sql in [
-        createCategoria,
-        createMovimiento,
-        createRecibo,
-        createAjuste,
-        ...createIndexes,
-      ]) {
-        await txn.execute(sql);
-      }
-      await _seedCategories(txn);
-    });
+  static Future<void> apply(Database db, int version) =>
+      db.transaction(applyIn);
+
+  /// Igual que [apply] pero dentro de una transacción ya abierta (la usa
+  /// el migrador para crear la base en un solo paso).
+  static Future<void> applyIn(Transaction txn) async {
+    for (final sql in [
+      createCategoria,
+      createMovimiento,
+      createRecibo,
+      createAjuste,
+      ...createIndexes,
+    ]) {
+      await txn.execute(sql);
+    }
+    await _seedCategories(txn);
   }
 
   /// Inserta las categorías fijas. Los ids son estables: primero las de

@@ -53,6 +53,18 @@ class AppConfig {
   /// (RF-48, CA-130, CA-132).
   static const Duration pinLockout = Duration(seconds: 30);
 
+  /// AUD-04: duración de cada bloqueo seguido sin un PIN correcto de por
+  /// medio. El primero es [pinLockout] (CA-130); los siguientes crecen
+  /// para que probar los 10^6 PIN no sea práctico. Pasado el último, se
+  /// repite el último.
+  static const List<Duration> pinLockoutSteps = [
+    pinLockout,
+    Duration(minutes: 1),
+    Duration(minutes: 5),
+    Duration(minutes: 15),
+    Duration(hours: 1),
+  ];
+
   /// Tiempo en segundo plano a partir del cual se vuelve a pedir el PIN:
   /// más de 60 segundos lo pide, 60 o menos no (RF-46, CA-121, CA-122,
   /// AMB-07).

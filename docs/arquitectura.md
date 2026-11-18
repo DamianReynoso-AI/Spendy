@@ -86,7 +86,7 @@ Persona → M-01 Interfaz ─┬→ M-02 Movimientos ──→ M-03 Categorías
 | El cálculo del resumen no depende de la interfaz | `AnnualSummaryCalculator` es Dart puro; CSV y PDF son clases separadas que implementan `SummaryExporter` (RNF-33). | `test/unit/annual_summary_calculator_test.dart`, `csv_exporter_test.dart` |
 | Límites en un solo lugar | `lib/config/app_config.dart` y `lib/config/categories.dart` (RNF-26). | `test/unit/config_test.dart` |
 
-## 2. Los 13 módulos
+## 2. Los 16 módulos
 
 | ID | Módulo | Capa | Carpeta / archivos | RF y RNF | Estado en v1.0.0 |
 |---|---|---|---|---|---|
@@ -103,6 +103,9 @@ Persona → M-01 Interfaz ─┬→ M-02 Movimientos ──→ M-03 Categorías
 | M-11 | Persistencia | Datos | `lib/data/` (`database.dart`, `image_store.dart`, `migrations/`, `models/`, `repositories/`) | RF-11, RF-19, RF-52, RF-53; RNF-14, RNF-21, RNF-27 | Completo; falta `secure_store.dart` y el borrado total (v0.7.0) |
 | M-12 | Configuración y formato | Transversal | `lib/config/`, `lib/core/formatters.dart`, `lib/core/validators.dart` | RF-54; RNF-26, RNF-37 | Completo |
 | M-13 | Registro de errores | Transversal | `lib/core/result.dart`, `lib/core/error_logger.dart` | RNF-05, RNF-20, RNF-28 | Completo |
+| M-14 | Presupuestos | Lógica | `lib/modules/budgets/` (`budget_calculator.dart`, `budget_service.dart`), `lib/data/repositories/budget_repository.dart` | Mejora v1.1.0 | Completo |
+| M-15 | Indicadores del mes | Lógica | `lib/modules/insights/` (`insights_calculator.dart`, `insights_service.dart`) | Mejora v1.1.0 | Completo |
+| M-16 | Copia de seguridad | Lógica | `lib/modules/backup/` (`backup_codec.dart`, `backup_service.dart`) | Mejora v1.1.0; TEC-02 | Completo |
 
 ### Responsabilidades, entradas y salidas
 
@@ -328,17 +331,30 @@ el aviso de privacidad cambia al texto que nombra al proveedor.
 
 ### 5.3 Manejo de la clave (TEC-01, RNF-18)
 
-Aplica a la clave de Gemini (`SPENDY_GEMINI_API_KEY`) y a la de la alternativa
-en la nube. Con ML Kit no hay clave.
+Desde v1.1.0 la clave de Gemini **no se compila dentro del APK**. Cada persona
+la captura en **Ajustes → Lectura de recibos** y se guarda en el almacén
+seguro del teléfono (`flutter_secure_storage`, Android Keystore), con la llave
+`gemini_api_key` (`OcrKeyService`, `SecureStore`).
 
-- La clave no está en el código ni en el historial de Git (revisado al cierre,
-  ver `docs/plan_pruebas.md`, sección 3). Se pasa al compilar con
-  `--dart-define-from-file=.env`; `.env` y `ocr.env.json` están en `.gitignore`
-  y solo se versiona `.env.example`, sin valores.
-- Riesgo aceptado para el MVP: un valor de `--dart-define` queda dentro del
-  APK y se puede extraer. Mitigación recomendada para después: un proxy mínimo
-  propio que guarde la clave del lado del servidor, o una clave restringida
-  con cuota baja.
+- `KeyedGeminiOcrAdapter` lee la clave en cada lectura: si hay clave usa
+  Gemini; si no, el respaldo (ML Kit). Capturarla o quitarla aplica sin
+  reiniciar.
+- Desactivar el PIN no la borra; el restablecimiento total sí (RF-50).
+- La pantalla solo muestra sus últimos 4 caracteres.
+- `SPENDY_GEMINI_API_KEY` se sigue leyendo de las variables de entorno solo en
+  escritorio y pruebas. Antes (v1.0) iba con `--dart-define`, que la dejaba
+  dentro del APK y se podía extraer; ese riesgo quedó eliminado.
+- La clave no está en el código ni en el historial de Git; `.env` está en
+  `.gitignore` y solo se versiona `.env.example`, sin valores.
+
+#### Respuesta estructurada
+
+La petición a Gemini incluye `responseMimeType: application/json` y un
+`responseSchema` con `legible`, `comercio`, `fecha` (AAAA-MM-DD) y `total`.
+`receiptJsonToText` convierte ese JSON a renglones canónicos (`FECHA
+DD/MM/AAAA`, `TOTAL $1234.50`) que entiende el mismo `ReceiptParser` de los
+demás proveedores, así que la validación (fecha futura, montos fuera de rango,
+recibo ilegible) no cambió.
 
 ### 5.4 Privacidad de las imágenes (TEC-02, RNF-17)
 
@@ -383,3 +399,54 @@ en la nube. Con ML Kit no hay clave.
 _[Completar con v0.7.0: archivos reales, decisiones tomadas (algoritmo de hash,
 paquete del almacén seguro, cómo se oculta en recientes) y resultados de
 pruebas.]_
+
+## 8. Mejoras de v1.1.0
+
+### 8.1 Migraciones de la base (RNF-27)
+
+`database.dart` ahora tiene `onUpgrade`: cada versión del esquema es un paso
+numerado (`_upgrades`). Una base nueva corre la v1 y todos los pasos en una
+sola transacción; una base existente solo corre los que le faltan, sin perder
+datos. La v2 (`migrations/v2_budgets.dart`) agrega:
+
+| Tabla | Columnas |
+|---|---|
+| `presupuesto` | `categoria_id INTEGER PK → categoria(id)`, `monto_centavos INTEGER > 0`, `actualizado_en TEXT` |
+
+El restablecimiento total también borra `presupuesto`.
+
+### 8.2 Presupuestos (M-14) e indicadores (M-15)
+
+- `BudgetCalculator` suma los egresos del mes por categoría contra su límite:
+  `ok` (< 80 %), `warning` (80 % a 100 %) y `exceeded` (> 100 %).
+- Inicio muestra la tarjeta de presupuestos y, al guardar un movimiento que
+  hace cambiar una categoría a `warning` o `exceeded`, un aviso.
+- `InsightsCalculator` compara el gasto del mes contra el **mismo avance**
+  del mes pasado (del día 1 al día de hoy), da la categoría con más gasto, el
+  promedio diario y la proyección al cierre.
+
+### 8.3 Copia de seguridad cifrada (M-16)
+
+Archivo `spendy_respaldo_AAAA-MM-DD.spendy`:
+
+```text
+"SPENDYBK" | versión (1 byte) | sal (16) | nonce (12) | ZIP cifrado | MAC (16)
+ZIP: respaldo.json (movimientos, recibos, presupuestos) + recibos/*.jpg
+```
+
+- Cifrado AES-256-GCM con llave PBKDF2-HMAC-SHA256 (120,000 iteraciones,
+  sal aleatoria) a partir de una contraseña de 8 caracteres o más. Se calcula
+  en otro isolate para no congelar la pantalla.
+- Se entrega al menú de compartir: la persona elige dónde guardarla (TEC-02).
+- Restaurar valida todo antes de tocar la base (formato, versión, tipos,
+  nombres de foto sin `../`), escribe las fotos con nombres nuevos, cambia las
+  filas en una transacción y al final borra las fotos viejas. Si algo falla,
+  los datos anteriores quedan intactos.
+
+### 8.4 Proceso
+
+- CI en GitHub Actions (`.github/workflows/ci.yml`): `flutter analyze` y
+  `flutter test` en cada push y pull request.
+- `pubspec.lock` se versiona para que todas las compilaciones usen las mismas
+  dependencias.
+- Firma de *release* con `android/key.properties` si existe.

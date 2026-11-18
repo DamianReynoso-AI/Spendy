@@ -43,6 +43,13 @@ class MemoryMovementRepository implements MovementRepository {
   Completer<void>? deleteGate;
 
   @override
+  Future<List<Movement>> fetchPage({
+    required int limit,
+    required int offset,
+  }) async =>
+      (await fetchAll()).skip(offset).take(limit).toList();
+
+  @override
   Future<int> insert(Movement movement) async {
     final error = insertError;
     if (error != null) throw error;

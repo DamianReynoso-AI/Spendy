@@ -65,6 +65,13 @@ class FakeMovementRepository implements MovementRepository {
       insert(movement);
 
   @override
+  Future<List<Movement>> fetchPage({
+    required int limit,
+    required int offset,
+  }) async =>
+      (await fetchAll()).skip(offset).take(limit).toList();
+
+  @override
   Future<List<Movement>> queryFilteredMovements({
     String? startDate,
     String? endDate,
@@ -607,13 +614,13 @@ void main() {
         expect(categories, 8, reason: 'la migración no se repite');
       });
 
-      test('RNF-14 / RNF-27: llaves foráneas, versión 1, tablas e índices',
+      test('RNF-14 / RNF-27: llaves foráneas, versión 3, tablas e índices',
           () async {
         final fk = Sqflite.firstIntValue(
           await db.rawQuery('PRAGMA foreign_keys'),
         );
         expect(fk, 1);
-        expect(await db.getVersion(), 1);
+        expect(await db.getVersion(), 3);
         final objects = await db.rawQuery(
           "SELECT type, name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' "
           "AND name != 'android_metadata' ORDER BY type, name",
@@ -625,7 +632,12 @@ void main() {
           'table:ajuste',
           'table:categoria',
           'table:movimiento',
+          'table:presupuesto',
           'table:recibo',
+          'trigger:movimiento_valido_insert',
+          'trigger:movimiento_valido_update',
+          'trigger:recibo_valido_insert',
+          'trigger:recibo_valido_update',
         ]);
       });
     });

@@ -95,6 +95,10 @@ typedef OcrTransport = Future<OcrHttpResponse> Function(
 class HttpClientTransport {
   HttpClientTransport({SecurityContext? context}) : _context = context;
 
+  /// AUD-17: tamaño máximo de una respuesta. El texto de un recibo cabe de
+  /// sobra; algo mayor es un error del servicio y no se carga en memoria.
+  static const int maxResponseBytes = 512 * 1024;
+
   final SecurityContext? _context;
 
   Future<OcrHttpResponse> call(
@@ -112,8 +116,11 @@ class HttpClientTransport {
       headers.forEach(request.headers.set);
       request.add(body);
       final response = await request.close();
-      final text = await response.transform(utf8.decoder).join();
-      return OcrHttpResponse(response.statusCode, text);
+      final bytes = await readLimited(response, maxResponseBytes);
+      return OcrHttpResponse(
+        response.statusCode,
+        utf8.decode(bytes, allowMalformed: true),
+      );
     } finally {
       client.close();
     }
@@ -165,4 +172,18 @@ String parseOcrResponse(OcrHttpResponse response) {
     // Se trata igual que un cuerpo sin "text".
   }
   throw const OcrException(OcrFailureKind.server);
+}
+
+/// Junta los bytes de [stream] y corta con [OcrFailureKind.server] en
+/// cuanto pasan de [limit] (AUD-17).
+Future<List<int>> readLimited(Stream<List<int>> stream, int limit) async {
+  final bytes = BytesBuilder(copy: false);
+  await for (final chunk in stream) {
+    bytes.add(chunk);
+    if (bytes.length > limit) {
+      throw const OcrException(
+          OcrFailureKind.server, 'respuesta demasiado grande');
+    }
+  }
+  return bytes.takeBytes();
 }

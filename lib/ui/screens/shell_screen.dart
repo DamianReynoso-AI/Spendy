@@ -7,9 +7,13 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../../modules/backup/backup_service.dart';
+import '../../modules/budgets/budget_service.dart';
 import '../../modules/categories/category_catalog.dart';
 import '../../modules/export/export_service.dart';
+import '../../modules/insights/insights_service.dart';
 import '../../modules/movements/movement_service.dart';
+import '../../modules/ocr/ocr_key_service.dart';
 import '../../modules/receipts/camera_service.dart';
 import '../../modules/receipts/receipt_service.dart';
 import '../../modules/search/movement_filter.dart';
@@ -35,6 +39,10 @@ class SpendyShell extends StatefulWidget {
     this.exports,
     this.filter,
     this.lock,
+    this.budgets,
+    this.insights,
+    this.backup,
+    this.ocrKey,
   });
 
   final MovementService service;
@@ -45,6 +53,10 @@ class SpendyShell extends StatefulWidget {
   final ExportService? exports;
   final MovementFilter? filter;
   final LockController? lock;
+  final BudgetService? budgets;
+  final InsightsService? insights;
+  final BackupService? backup;
+  final OcrKeyService? ocrKey;
 
   @override
   State<SpendyShell> createState() => _SpendyShellState();
@@ -78,6 +90,8 @@ class _SpendyShellState extends State<SpendyShell> {
             exports: widget.exports,
             filter: widget.filter,
             lock: widget.lock,
+            budgets: widget.budgets,
+            insights: widget.insights,
           ),
         _Tab.movements => MovementListScreen(
             service: widget.service,
@@ -90,7 +104,13 @@ class _SpendyShellState extends State<SpendyShell> {
             summary: widget.summary!,
             exports: widget.exports!,
           ),
-        _Tab.settings => SettingsScreen(lock: widget.lock!),
+        _Tab.settings => SettingsScreen(
+            lock: widget.lock!,
+            ocrKey: widget.ocrKey,
+            backup: widget.backup,
+            budgets: widget.budgets,
+            catalog: widget.catalog,
+          ),
       };
 
   @override
@@ -112,20 +132,29 @@ class _SpendyShellState extends State<SpendyShell> {
             ),
           if (_hasSummary)
             _item(_Tab.summary, 'Resumen', Icons.pie_chart_outline,
-                Icons.pie_chart),
+                Icons.pie_chart,
+                tooltip: 'Resumen anual'),
           if (widget.lock != null)
             _item(_Tab.settings, 'Ajustes', Icons.settings_outlined,
-                Icons.settings),
+                Icons.settings,
+                tooltip: 'Configuración'),
         ],
       ),
     );
   }
 
-  BottomBarItem _item(_Tab tab, String label, IconData icon, IconData active) =>
+  BottomBarItem _item(
+    _Tab tab,
+    String label,
+    IconData icon,
+    IconData active, {
+    String? tooltip,
+  }) =>
       BottomBarItem(
         label: label,
         icon: _tab == tab ? active : icon,
         selected: _tab == tab,
+        tooltip: tooltip,
         onTap: () => setState(() => _tab = tab),
       );
 }
@@ -138,9 +167,13 @@ class BottomBarItem {
     required this.selected,
     required this.onTap,
     this.center = false,
+    this.tooltip,
   });
 
   final String label;
+
+  /// Texto de ayuda al mantener presionado (nombre completo).
+  final String? tooltip;
   final IconData icon;
   final bool selected;
   final VoidCallback onTap;
@@ -193,7 +226,7 @@ class _BarButton extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     final color =
         item.selected ? colors.primary : SpendyPalette.of(context).muted;
-    return Semantics(
+    final button = Semantics(
       selected: item.selected,
       button: true,
       label: item.label,
@@ -226,6 +259,8 @@ class _BarButton extends StatelessWidget {
         ),
       ),
     );
+    final tooltip = item.tooltip;
+    return tooltip == null ? button : Tooltip(message: tooltip, child: button);
   }
 }
 
