@@ -6,7 +6,7 @@ el teléfono (SQLite y carpeta privada de la app).
 
 | Dato | Registro |
 |---|---|
-| Versión | 1.0.0 (cierre del 23/11/2026) |
+| Versión | 1.1.0 (mejoras posteriores al cierre v1.0.0 del 23/11/2026) |
 | Equipo | Reynoso Nesme Hugo Damián (Operador de IA y Documentador) · Gutiérrez García Julio Augusto (Analista y Tester) |
 | Curso | Desarrollo de Aplicaciones y Servicios Virtuales, UIA León |
 | Plataforma del MVP | Android 10 (API 29) o superior (ALC-01, RNF-34) |
@@ -47,24 +47,26 @@ cd Spendy
 
 ## 3. Lectura de recibos (OCR) y `.env.example`
 
-La lectura de recibos usa la **API de Gemini** de Google AI Studio. Para
-activarla necesitas una clave:
+Por omisión la app lee los recibos con **Google ML Kit** dentro del
+teléfono. Para leerlos mejor con la **API de Gemini** de Google AI Studio,
+cada persona captura **su propia clave en la app**:
 
 1. Entra a <https://aistudio.google.com>, da clic en **Get API key** y luego
    en **Create API key**.
-2. Copia `.env.example` a `.env` y pega la clave en `SPENDY_GEMINI_API_KEY`.
+2. En SPENDY ve a **Ajustes → Lectura de recibos → Leer recibos con Gemini**
+   y pega la clave.
 
-```bash
-cp .env.example .env
-# edita .env y llena SPENDY_GEMINI_API_KEY
-```
+La clave se guarda cifrada en el almacenamiento seguro del teléfono (Android
+Keystore). **Desde v1.1.0 ya no se compila dentro del APK** (TEC-01): antes
+iba con `--dart-define` y cualquiera con el APK podía extraerla. Gemini
+responde en JSON con un esquema fijo (comercio, fecha, total), que es más
+preciso que interpretar texto libre.
 
-La clave **nunca** va en el código ni en el repositorio (RNF-18). Sin clave, la
-app lee los recibos con **Google ML Kit** dentro del teléfono.
+`.env` sigue sirviendo para desarrollo y para el otro servicio de OCR:
 
 | Variable | Obligatoria | Descripción |
 |---|---|---|
-| `SPENDY_GEMINI_API_KEY` | Sí, para Gemini | Clave de Google AI Studio. Se envía en el encabezado `x-goog-api-key`. |
+| `SPENDY_GEMINI_API_KEY` | No | Solo en escritorio y pruebas (se lee del entorno, no del APK). En el teléfono la clave va en Ajustes. |
 | `SPENDY_GEMINI_MODEL` | No | Modelos de Gemini en orden, separados por comas; por omisión `gemini-flash-lite-latest,gemini-flash-latest`. |
 | `SPENDY_OCR_ENDPOINT` | No | URL `https://` del servicio de OCR. Una URL `http://` se rechaza (RNF-16). |
 | `SPENDY_OCR_API_KEY` | No | Clave del servicio; se envía como `Authorization: Bearer <clave>`. |
@@ -100,14 +102,25 @@ Conecta un teléfono Android con depuración USB o abre un emulador y corre:
 flutter run --dart-define-from-file=.env
 ```
 
-Sin `.env` funciona igual (`flutter run`) y lee los recibos con ML Kit en vez de Gemini.
+Sin `.env` funciona igual (`flutter run`). La lectura con Gemini se activa en Ajustes.
 
 Permisos ya declarados en `android/app/src/main/AndroidManifest.xml`:
 `CAMERA` (foto del recibo), `USE_BIOMETRIC` (desbloqueo con huella, M-09) e
 `INTERNET` (solo para leer recibos con Gemini u otro OCR en la nube, siempre por HTTPS). Las fotos se guardan en la carpeta privada de la app (`recibos/`,
 con `.nomedia`), nunca en la galería (RNF-14).
 
-Para generar un APK de prueba: `flutter build apk --dart-define-from-file=.env`.
+Para generar un APK de prueba: `flutter build apk --release`.
+
+Firma del APK de *release*: si existe `android/key.properties` (no se
+versiona) se usa esa llave; si no, se firma con la de depuración, que solo
+sirve para pruebas. Formato de `android/key.properties`:
+
+```properties
+storeFile=/ruta/a/spendy.jks
+storePassword=...
+keyAlias=spendy
+keyPassword=...
+```
 
 ## 6. Pruebas con un solo comando (≈ 1 min)
 
@@ -158,12 +171,14 @@ lib/
   core/                M-12 y M-13: formatos, validadores, Result y errores.log
   data/                M-11: SQLite, migraciones, repositorios e imágenes privadas
   modules/             lógica de negocio: movements, categories, receipts, ocr,
-                       search, summary, export, privacy (M-02 a M-10)
+                       search, summary, export, privacy, security (M-02 a M-10),
+                       budgets (M-14), insights (M-15) y backup (M-16)
   ui/                  M-01: pantallas y widgets
 test/                  unit/, widget/, integration/ y fixtures/
 docs/                  arquitectura, manual, plan de pruebas, requerimientos
 android/               proyecto Android (plataforma del MVP)
 tool/check_quality.py  revisión de RNF-29 y RNF-30
+.github/workflows/     CI: análisis y pruebas en cada push y pull request
 ```
 
 La descripción completa de capas, módulos y modelo de datos está en
@@ -181,13 +196,15 @@ La descripción completa de capas, módulos y modelo de datos está en
 | v0.6.0 | Búsqueda, filtros y uso sin conexión (M-06) |
 | v1.0.0 | Cierre: verificación de RNF, saneamiento de defectos y documentación |
 | v0.7.0 | Protección con PIN (M-09), posterior al 23/11/2026; ver la sección PIN de la arquitectura y del manual |
+| v1.1.0 | Interfaz tipo app de banco, OCR con Gemini estructurado y clave en Ajustes (fuera del APK), migraciones de base de datos, presupuestos por categoría (M-14), indicadores del mes (M-15), copia de seguridad cifrada (M-16) y CI |
 
 ## 9. Problemas comunes
 
 | Síntoma | Solución |
 |---|---|
 | `flutter run` dice que no hay dispositivos | Activa la depuración USB del teléfono o abre un emulador desde Android Studio (Device Manager). |
-| Al escanear dice que la lectura no está disponible | Falta `.env` o no se pasó `--dart-define-from-file=.env`; o la URL no es `https://`. |
-| Al escanear dice que el servicio no respondió bien | Clave de Gemini inválida o sin cuota. Compila con `--dart-define=SPENDY_OCR_DEBUG=true` para ver el código de Google. |
+| Al escanear dice que la lectura no está disponible | Se configuró `SPENDY_OCR_ENDPOINT` con una URL que no es `https://`. |
+| Al escanear dice que el servicio no respondió bien | Clave de Gemini inválida o sin cuota: revísala en Ajustes. Compila con `--dart-define=SPENDY_OCR_DEBUG=true` para ver el código de Google. |
+| "La contraseña no es correcta" al restaurar | La copia se cifró con otra contraseña. Sin ella no se puede abrir (es a propósito). |
 | Gradle pide otra versión de Java | Usa JDK 17 (`flutter config --jdk-dir <ruta>`). |
 | `flutter analyze` marca archivos de `build/` | Ya están excluidos en `analysis_options.yaml`; corre `flutter clean` y vuelve a intentar. |
