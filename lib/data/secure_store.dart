@@ -127,6 +127,11 @@ class SecureStore {
   static const String biometricEnabledKey = 'biometric_enabled';
   static const String resetPendingKey = 'reset_pending';
 
+  /// Clave de la API de Gemini que captura la persona en Ajustes (TEC-01:
+  /// nunca va dentro del APK). No es parte de la seguridad del PIN: no la
+  /// borra desactivar el PIN, solo el restablecimiento total.
+  static const String geminiApiKeyKey = 'gemini_api_key';
+
   /// Claves que borra el restablecimiento total. La bandera de
   /// restablecimiento no está aquí: se borra al final, aparte.
   static const List<String> securityKeys = [
@@ -184,6 +189,12 @@ class SecureStore {
       await _backend.delete(key);
     }
   }
+
+  Future<String?> readGeminiApiKey() => _backend.read(geminiApiKeyKey);
+
+  Future<void> writeGeminiApiKey(String? key) => key == null
+      ? _backend.delete(geminiApiKeyKey)
+      : _backend.write(geminiApiKeyKey, key);
 
   Future<bool> readResetPending() async =>
       await _backend.read(resetPendingKey) == 'true';

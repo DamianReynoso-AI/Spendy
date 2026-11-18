@@ -76,6 +76,7 @@ class ResetService {
     await wipeUserData(_db);
     await _images.deleteAllImages();
     await _store.clearSecurity();
+    await _store.writeGeminiApiKey(null);
     await _store.writeResetPending(false);
   }
 }

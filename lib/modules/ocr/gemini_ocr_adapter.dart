@@ -2,20 +2,26 @@
 /// (RNF-16 a RNF-18, RNF-32; ver docs/arquitectura.md, sección 5.2).
 ///
 /// Envía la foto comprimida del recibo, por HTTPS, al modelo de Gemini y
-/// le pide transcribir el texto renglón por renglón. Ese texto pasa al
-/// mismo [ReceiptParser] que usan los demás proveedores.
+/// le pide los datos ya separados en JSON (comercio, fecha y total), con
+/// un esquema fijo. Ese JSON se convierte a renglones canónicos
+/// ("TOTAL $123.45") que entiende el mismo [ReceiptParser] que usan los
+/// demás proveedores; si el modelo no respondiera JSON, se usa su texto tal
+/// cual.
 ///
 /// ```text
 /// POST https://generativelanguage.googleapis.com/v1beta/models/<modelo>:generateContent
-/// x-goog-api-key: <SPENDY_GEMINI_API_KEY>
+/// x-goog-api-key: <clave>
 /// {"contents":[{"parts":[{"text":"<instrucción>"},
-///   {"inline_data":{"mime_type":"image/jpeg","data":"<base64>"}}]}]}
+///   {"inline_data":{"mime_type":"image/jpeg","data":"<base64>"}}]}],
+///  "generationConfig":{"responseMimeType":"application/json", ...}}
 ///
-/// 200 OK  {"candidates":[{"content":{"parts":[{"text":"<texto>"}]}}]}
+/// 200 OK  {"candidates":[{"content":{"parts":[{"text":"{\"total\":...}"}]}}]}
 /// ```
 ///
-/// La clave se lee de `--dart-define-from-file=.env` (RNF-18). `.env` no se
-/// sube al repositorio.
+/// La clave la captura la persona en Ajustes y vive en el almacenamiento
+/// seguro del teléfono (TEC-01): nunca va dentro del APK ni en el
+/// repositorio. Para desarrollo en escritorio también se lee de la variable
+/// de entorno `SPENDY_GEMINI_API_KEY`.
 library;
 
 import 'dart:convert';
@@ -40,11 +46,9 @@ class GeminiEnvironment {
     'gemini-flash-latest',
   ];
 
-  static const String compiledApiKey = String.fromEnvironment(apiKeyKey);
+  /// El modelo sí se puede fijar al compilar (no es un secreto). La clave
+  /// no: compilada dentro del APK cualquiera podría extraerla (TEC-01).
   static const String compiledModel = String.fromEnvironment(modelKey);
-
-  /// `true` si esta compilación trae clave de Gemini.
-  static const bool isCompiledIn = compiledApiKey != '';
 }
 
 /// Clave y modelos de Gemini.
@@ -74,12 +78,11 @@ class GeminiOcrConfig {
     return list.isEmpty ? GeminiEnvironment.defaultModels : list;
   }
 
-  /// Lee la configuración de `--dart-define` o, si no hay, de [environment]
-  /// (por defecto, las variables del sistema). `null` si no hay clave.
+  /// Lee la configuración de [environment] (por defecto, las variables del
+  /// sistema; útil en escritorio y en pruebas). `null` si no hay clave.
   static GeminiOcrConfig? fromEnvironment({Map<String, String>? environment}) {
     final env = environment ?? Platform.environment;
-    final key = _pick(
-        GeminiEnvironment.compiledApiKey, env[GeminiEnvironment.apiKeyKey]);
+    final key = _pick('', env[GeminiEnvironment.apiKeyKey]);
     if (key == null) return null;
     final model =
         _pick(GeminiEnvironment.compiledModel, env[GeminiEnvironment.modelKey]);
@@ -92,15 +95,26 @@ class GeminiOcrConfig {
   }
 }
 
-/// Instrucción que acompaña a la foto. Pide texto plano con cada concepto
-/// junto a su importe, que es lo que entiende [ReceiptParser].
+/// Instrucción que acompaña a la foto.
 const String geminiReceiptPrompt =
-    'Transcribe el texto de este recibo o ticket de compra tal como está '
-    'impreso, renglón por renglón y de arriba abajo. Deja en el mismo '
-    'renglón cada concepto con su importe (por ejemplo "TOTAL \$123.45"). '
-    'Conserva las fechas como aparecen. Responde solo con el texto, sin '
-    'comentarios, sin Markdown y sin inventar nada. Si la imagen no es un '
-    'recibo o no se puede leer, responde con un texto vacío.';
+    'Lee este recibo o ticket de compra de México y extrae: el nombre del '
+    'comercio (como aparece en el encabezado, sin RFC ni dirección), la '
+    'fecha de la compra en formato AAAA-MM-DD y el TOTAL pagado (no el '
+    'subtotal, ni el IVA, ni el efectivo recibido, ni el cambio). Si un dato '
+    'no se ve con claridad, déjalo en null; no inventes nada. Si la imagen '
+    'no es un recibo o no se puede leer, pon "legible" en false.';
+
+/// Esquema de la respuesta JSON (subconjunto OpenAPI que acepta Gemini).
+const Map<String, Object> geminiReceiptSchema = {
+  'type': 'OBJECT',
+  'properties': {
+    'legible': {'type': 'BOOLEAN'},
+    'comercio': {'type': 'STRING', 'nullable': true},
+    'fecha': {'type': 'STRING', 'nullable': true},
+    'total': {'type': 'NUMBER', 'nullable': true},
+  },
+  'required': ['legible'],
+};
 
 /// Adaptador de Gemini. Solo envía la imagen y la instrucción fija; nunca
 /// montos, notas ni otros datos de la persona (RNF-17).
@@ -124,7 +138,7 @@ class GeminiOcrAdapter implements OcrAdapter {
       if (!_tryNextModel.contains(response.statusCode)) break;
       if (cancel.isCancelled) break;
     }
-    return parseGeminiResponse(response);
+    return receiptJsonToText(parseGeminiResponse(response));
   }
 
   Future<OcrHttpResponse> _send(
@@ -167,7 +181,11 @@ Uint8List buildGeminiRequest(Uint8List image) {
         ],
       },
     ],
-    'generationConfig': {'temperature': 0},
+    'generationConfig': {
+      'temperature': 0,
+      'responseMimeType': 'application/json',
+      'responseSchema': geminiReceiptSchema,
+    },
   };
   return Uint8List.fromList(utf8.encode(jsonEncode(body)));
 }
@@ -221,4 +239,74 @@ String _googleError(String body) {
     // Cuerpo que no es JSON.
   }
   return '';
+}
+
+/// Convierte el JSON de Gemini (`comercio`, `fecha`, `total`, `legible`) a
+/// renglones que entiende [ReceiptParser]: el comercio, "FECHA DD/MM/AAAA"
+/// y "TOTAL $1234.50". Lo que no venga se omite; si no es legible o no
+/// trae nada, devuelve texto vacío (recibo ilegible, RF-29). Si [text] no
+/// es un objeto JSON, lo devuelve tal cual (respuesta de texto libre).
+String receiptJsonToText(String text) {
+  final Object? json;
+  try {
+    json = jsonDecode(text);
+  } on FormatException {
+    return text;
+  }
+  if (json is! Map) return text;
+  if (json['legible'] == false) return '';
+  final lines = <String>[];
+  final merchant = json['comercio'];
+  if (merchant is String && merchant.trim().isNotEmpty) {
+    lines.add(merchant.trim().replaceAll(RegExp(r'\s+'), ' '));
+  }
+  final date = _isoToDmy(json['fecha']);
+  if (date != null) lines.add('FECHA $date');
+  final total = json['total'];
+  if (total is num && total > 0) {
+    lines.add('TOTAL \$${total.toStringAsFixed(2)}');
+  } else if (total is String && total.trim().isNotEmpty) {
+    lines.add('TOTAL ${total.trim()}');
+  }
+  return lines.join('\n');
+}
+
+final RegExp _isoDate = RegExp(r'^(\d{4})-(\d{1,2})-(\d{1,2})$');
+
+String? _isoToDmy(Object? value) {
+  if (value is! String) return null;
+  final m = _isoDate.firstMatch(value.trim());
+  if (m == null) return null;
+  final d = m.group(3)!.padLeft(2, '0');
+  final mo = m.group(2)!.padLeft(2, '0');
+  return '$d/$mo/${m.group(1)}';
+}
+
+/// Usa Gemini cuando hay clave guardada en Ajustes y si no, [fallback]
+/// (ML Kit en el teléfono). La clave se lee en cada lectura, así que
+/// capturarla o quitarla en Ajustes aplica de inmediato, sin reiniciar.
+class KeyedGeminiOcrAdapter implements OcrAdapter {
+  KeyedGeminiOcrAdapter({
+    required Future<String?> Function() readKey,
+    required OcrAdapter fallback,
+    String? model,
+    OcrTransport? transport,
+  })  : _readKey = readKey,
+        _fallback = fallback,
+        _model = model,
+        _transport = transport;
+
+  final Future<String?> Function() _readKey;
+  final OcrAdapter _fallback;
+  final String? _model;
+  final OcrTransport? _transport;
+
+  @override
+  Future<String> recognize(Uint8List image, OcrCancelToken cancel) async {
+    final key = await _readKey();
+    if (key == null || key.isEmpty) return _fallback.recognize(image, cancel);
+    final config = GeminiOcrConfig(apiKey: key, model: _model);
+    return GeminiOcrAdapter(config, transport: _transport)
+        .recognize(image, cancel);
+  }
 }

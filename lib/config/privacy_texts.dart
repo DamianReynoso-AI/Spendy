@@ -15,20 +15,15 @@ class PrivacyTexts {
   /// genérica.
   static const String ocrProviderName = String.fromEnvironment(
     'SPENDY_OCR_PROVIDER_NAME',
-    defaultValue: _usesGemini
-        ? 'Google (Gemini) para leer el recibo'
-        : 'un servicio externo de lectura de recibos (OCR)',
+    defaultValue: 'un servicio externo de lectura de recibos (OCR)',
   );
 
-  /// `true` si se compiló con clave de Gemini (`SPENDY_GEMINI_API_KEY`).
-  static const bool _usesGemini =
-      String.fromEnvironment('SPENDY_GEMINI_API_KEY').length > 0;
-
-  /// `true` si se compiló con un servicio de OCR en la nube (Gemini o
-  /// `SPENDY_OCR_ENDPOINT`). Si no, la lectura se hace en el teléfono con
-  /// Google ML Kit y la foto no sale del teléfono.
+  /// `true` si se compiló con un servicio de OCR en la nube
+  /// (`SPENDY_OCR_ENDPOINT`). Si no, por omisión la lectura se hace en el
+  /// teléfono con Google ML Kit y la foto no sale del teléfono. Gemini se
+  /// activa después, en Ajustes, con la clave de la persona.
   static const bool ocrUsesCloud =
-      _usesGemini || String.fromEnvironment('SPENDY_OCR_ENDPOINT').length > 0;
+      String.fromEnvironment('SPENDY_OCR_ENDPOINT').length > 0;
 
   /// Párrafo del OCR cuando se lee en la nube (RNF-17).
   static const String cloudOcrParagraph =
@@ -44,6 +39,14 @@ class PrivacyTexts {
       'ningún servidor. Nunca se envían tus montos, notas ni ningún otro '
       'dato tuyo.';
 
+  /// Párrafo de Gemini, que la persona activa por su cuenta en Ajustes
+  /// con su propia clave (RNF-17, TEC-01).
+  static const String geminiOptInParagraph =
+      'Si en Ajustes activas la lectura con Gemini usando tu propia clave de '
+      'Google AI Studio, solo la imagen del recibo que escanees se envía, de '
+      'forma cifrada (HTTPS), a Google (Gemini) para leer el comercio, la '
+      'fecha y el total. Puedes quitar la clave cuando quieras.';
+
   static const String title = 'Aviso de privacidad';
 
   static const String intro =
@@ -56,10 +59,12 @@ class PrivacyTexts {
         'ningún servidor ni los comparte con nadie.',
     'Las fotos de tus recibos no aparecen en la galería del teléfono.',
     ocrUsesCloud ? cloudOcrParagraph : onDeviceOcrParagraph,
+    geminiOptInParagraph,
     'Si no quieres usar la lectura de recibos, puedes registrar tus '
         'movimientos a mano.',
-    'Los resúmenes que exportes en CSV o PDF se guardan o se comparten solo '
-        'donde tú elijas.',
+    'Los resúmenes que exportes en CSV o PDF y las copias de seguridad '
+        '(cifradas con tu contraseña) se guardan o se comparten solo donde tú '
+        'elijas.',
     'Si desinstalas la app, se borran todos tus datos de este teléfono.',
   ];
 

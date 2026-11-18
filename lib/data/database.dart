@@ -1,25 +1,54 @@
 /// M-11 · Apertura de la base SQLite (RF-53; RNF-14, RNF-27).
 ///
 /// La base vive en la carpeta privada de bases de datos de la app, con
-/// llaves foráneas activas y versión de esquema 1 (migración v1_initial).
+/// llaves foráneas activas. El esquema se crea y se actualiza con
+/// migraciones numeradas (RNF-27): una base nueva corre todas; una que ya
+/// existe solo corre las que le faltan, sin perder datos.
 library;
 
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
 import 'migrations/v1_initial.dart';
+import 'migrations/v2_budgets.dart';
 
 /// Nombre del archivo de la base dentro del almacenamiento privado.
 const String databaseFileName = 'spendy.db';
 
 /// Versión actual del esquema (RNF-27).
-const int schemaVersion = V1Initial.version;
+const int schemaVersion = V2Budgets.version;
+
+/// Pasos de actualización: la llave es la versión a la que lleva cada uno.
+/// La v1 es la creación inicial y la corre [_onCreate].
+final Map<int, Future<void> Function(Transaction)> _upgrades = {
+  V2Budgets.version: V2Budgets.apply,
+};
+
+/// Base nueva: esquema inicial más todas las migraciones, en una sola
+/// transacción (si algo falla no queda a medias).
+Future<void> _onCreate(Database db, int version) => db.transaction((txn) async {
+      await V1Initial.applyIn(txn);
+      await _migrate(txn, V1Initial.version, version);
+    });
+
+/// Base existente con una versión anterior: corre solo lo que falta.
+Future<void> _onUpgrade(Database db, int from, int to) =>
+    db.transaction((txn) => _migrate(txn, from, to));
+
+Future<void> _migrate(Transaction txn, int from, int to) async {
+  for (var v = from + 1; v <= to; v++) {
+    final step = _upgrades[v];
+    if (step == null) throw StateError('Falta la migración a la versión $v');
+    await step(txn);
+  }
+}
 
 /// Opciones de apertura comunes a la app y a las pruebas.
 OpenDatabaseOptions spendyDatabaseOptions() => OpenDatabaseOptions(
       version: schemaVersion,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
-      onCreate: V1Initial.apply,
+      onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
 
 /// Abre (o crea) la base de SPENDY.
@@ -38,7 +67,12 @@ Future<Database> openSpendyDatabase({
 
 /// Tablas con datos de la persona usuaria, en orden de borrado (primero
 /// las que apuntan a otras). `categoria` es catálogo fijo y se conserva.
-const List<String> userDataTables = ['recibo', 'movimiento', 'ajuste'];
+const List<String> userDataTables = [
+  'recibo',
+  'presupuesto',
+  'movimiento',
+  'ajuste',
+];
 
 /// Borrado total de los datos de la base para el restablecimiento de la
 /// app (RF-50; CA-137, CA-139).

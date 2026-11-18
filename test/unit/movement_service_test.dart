@@ -607,13 +607,13 @@ void main() {
         expect(categories, 8, reason: 'la migración no se repite');
       });
 
-      test('RNF-14 / RNF-27: llaves foráneas, versión 1, tablas e índices',
+      test('RNF-14 / RNF-27: llaves foráneas, versión 2, tablas e índices',
           () async {
         final fk = Sqflite.firstIntValue(
           await db.rawQuery('PRAGMA foreign_keys'),
         );
         expect(fk, 1);
-        expect(await db.getVersion(), 1);
+        expect(await db.getVersion(), 2);
         final objects = await db.rawQuery(
           "SELECT type, name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' "
           "AND name != 'android_metadata' ORDER BY type, name",
@@ -625,6 +625,7 @@ void main() {
           'table:ajuste',
           'table:categoria',
           'table:movimiento',
+          'table:presupuesto',
           'table:recibo',
         ]);
       });

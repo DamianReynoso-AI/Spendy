@@ -132,7 +132,8 @@ void main() {
     await tester.tap(find.byTooltip('Resumen anual'));
     await tester.pumpAndSettle();
     expectNoOverflow(tester, '$label · resumen anual');
-    await back(tester);
+    await tester.tap(find.text('Inicio'));
+    await tester.pumpAndSettle();
     expectNoOverflow(tester, '$label · regreso a la lista');
   }
 

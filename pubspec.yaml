@@ -1,14 +1,17 @@
 name: spendy
 description: "SPENDY - registro de ingresos, egresos y comprobantes fiscales (Zenorbak 2)."
 publish_to: 'none'
-version: 1.0.0+7
+version: 1.1.0+8
 
 environment:
   sdk: ^3.5.0
 
 dependencies:
+  archive: ^4.7.1
   camera: ^0.12.2
   crypto: ^3.0.8
+  cryptography: ^2.9.0
+  file_picker: ^13.4.0
   flutter:
     sdk: flutter
   flutter_localizations:
