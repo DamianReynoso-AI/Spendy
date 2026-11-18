@@ -65,8 +65,10 @@ final RegExp _textMonth = RegExp(
   r'\b(\d{1,2})[\s/\-.]*(?:de\s+)?(ene|feb|mar|abr|may|jun|jul|ago|sep|set|oct|nov|dic)'
   r'[a-z]*\.?[\s/\-.,]*(?:de\s+)?(\d{4}|\d{2})\b',
 );
-final RegExp _totalWord = RegExp(r'\btotal\b');
-final RegExp _notTotal = RegExp(r'subtotal|total\s+de\s+art|articulos|piezas');
+/// "total", también cuando el OCR lee la O como cero ("T0TAL").
+final RegExp _totalWord = RegExp(r'\bt[o0]tal\b');
+final RegExp _notTotal =
+    RegExp(r'sub\s*t[o0]tal|t[o0]tal\s+de\s+art|articulos|piezas');
 final RegExp _amountToken = RegExp(r'\d[\d.,]*\d|\d');
 final RegExp _merchantSkip = RegExp(
   r'\b(rfc|r\.f\.c|ticket|factura|folio|fecha|hora|tel|telefono|total|'
@@ -103,6 +105,17 @@ String? normalizeMxnAmount(String raw) {
   if (cents <= 0 || cents > AppConfig.maxAmountCents) return null;
   return '${cents ~/ 100}.${(cents % 100).toString().padLeft(2, '0')}';
 }
+
+final RegExp _letterOInNumber =
+    RegExp(r'(?<=\d)[oO](?=[\d.,])|(?<=[\d.,])[oO](?=[\d.,]|\s|$)');
+final RegExp _spacedDecimals = RegExp(r'(\d)\s*([.,])\s+(\d{2})\b');
+
+/// Corrige errores típicos del OCR en un renglón con importes: la letra O
+/// leída en lugar de un cero ("1O0.00") y espacios alrededor del punto
+/// decimal ("39. 50").
+String cleanOcrDigits(String line) => line
+    .replaceAll(_letterOInNumber, '0')
+    .replaceAllMapped(_spacedDecimals, (m) => '${m[1]}${m[2]}${m[3]}');
 
 /// Intérprete del texto del recibo.
 class ReceiptParser {
@@ -216,7 +229,7 @@ class ReceiptParser {
   }
 
   static String? _lastAmount(String line) {
-    final matches = _amountToken.allMatches(line).toList();
+    final matches = _amountToken.allMatches(cleanOcrDigits(line)).toList();
     return matches.isEmpty ? null : matches.last.group(0);
   }
 }

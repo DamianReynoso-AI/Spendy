@@ -45,27 +45,35 @@ git clone https://github.com/DamianReynoso-AI/Spendy.git
 cd Spendy
 ```
 
-## 3. Configurar variables a partir de `.env.example` (≈ 2 min)
+## 3. Lectura de recibos (OCR) y `.env.example`
 
-La lectura OCR usa un servicio externo. Su URL y su clave **nunca** van en
-el código ni en el repositorio (RNF-18).
+La lectura de recibos usa la **API de Gemini** de Google AI Studio. Para
+activarla necesitas una clave:
+
+1. Entra a <https://aistudio.google.com>, da clic en **Get API key** y luego
+   en **Create API key**.
+2. Copia `.env.example` a `.env` y pega la clave en `SPENDY_GEMINI_API_KEY`.
 
 ```bash
 cp .env.example .env
-# edita .env y llena SPENDY_OCR_ENDPOINT, SPENDY_OCR_API_KEY y SPENDY_OCR_PROVIDER_NAME
+# edita .env y llena SPENDY_GEMINI_API_KEY
 ```
+
+La clave **nunca** va en el código ni en el repositorio (RNF-18). Sin clave, la
+app lee los recibos con **Google ML Kit** dentro del teléfono.
 
 | Variable | Obligatoria | Descripción |
 |---|---|---|
+| `SPENDY_GEMINI_API_KEY` | Sí, para Gemini | Clave de Google AI Studio. Se envía en el encabezado `x-goog-api-key`. |
+| `SPENDY_GEMINI_MODEL` | No | Modelos de Gemini en orden, separados por comas; por omisión `gemini-flash-lite-latest,gemini-flash-latest`. |
 | `SPENDY_OCR_ENDPOINT` | No | URL `https://` del servicio de OCR. Una URL `http://` se rechaza (RNF-16). |
 | `SPENDY_OCR_API_KEY` | No | Clave del servicio; se envía como `Authorization: Bearer <clave>`. |
 | `SPENDY_OCR_PROVIDER_NAME` | No | Nombre del proveedor que se muestra en el aviso de privacidad. |
 
-`.env` está en `.gitignore`. Si no configuras nada, la app funciona igual:
-al escanear avisa que la lectura no está disponible y abre el registro
-manual con la foto adjunta.
+`.env` está en `.gitignore`.
 
-Contrato que debe cumplir el servicio de OCR (cualquier proveedor que lo
+Las variables `SPENDY_OCR_*` son para otro servicio de OCR en la nube, en lugar de Gemini.
+Contrato que debe cumplir ese servicio (cualquier proveedor que lo
 cumpla sirve; para otro contrato basta con otra implementación de
 `OcrAdapter`, RNF-32):
 
@@ -92,11 +100,11 @@ Conecta un teléfono Android con depuración USB o abre un emulador y corre:
 flutter run --dart-define-from-file=.env
 ```
 
-Sin `.env` también funciona (`flutter run`), pero sin lectura OCR.
+Sin `.env` funciona igual (`flutter run`) y lee los recibos con ML Kit en vez de Gemini.
 
 Permisos ya declarados en `android/app/src/main/AndroidManifest.xml`:
-`CAMERA` (foto del recibo) e `INTERNET` (solo para el OCR, siempre por
-HTTPS). Las fotos se guardan en la carpeta privada de la app (`recibos/`,
+`CAMERA` (foto del recibo), `USE_BIOMETRIC` (desbloqueo con huella, M-09) e
+`INTERNET` (solo para leer recibos con Gemini u otro OCR en la nube, siempre por HTTPS). Las fotos se guardan en la carpeta privada de la app (`recibos/`,
 con `.nomedia`), nunca en la galería (RNF-14).
 
 Para generar un APK de prueba: `flutter build apk --dart-define-from-file=.env`.
@@ -180,5 +188,6 @@ La descripción completa de capas, módulos y modelo de datos está en
 |---|---|
 | `flutter run` dice que no hay dispositivos | Activa la depuración USB del teléfono o abre un emulador desde Android Studio (Device Manager). |
 | Al escanear dice que la lectura no está disponible | Falta `.env` o no se pasó `--dart-define-from-file=.env`; o la URL no es `https://`. |
+| Al escanear dice que el servicio no respondió bien | Clave de Gemini inválida o sin cuota. Compila con `--dart-define=SPENDY_OCR_DEBUG=true` para ver el código de Google. |
 | Gradle pide otra versión de Java | Usa JDK 17 (`flutter config --jdk-dir <ruta>`). |
 | `flutter analyze` marca archivos de `build/` | Ya están excluidos en `analysis_options.yaml`; corre `flutter clean` y vuelve a intentar. |

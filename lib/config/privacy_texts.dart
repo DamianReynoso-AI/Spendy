@@ -15,8 +15,34 @@ class PrivacyTexts {
   /// genérica.
   static const String ocrProviderName = String.fromEnvironment(
     'SPENDY_OCR_PROVIDER_NAME',
-    defaultValue: 'un servicio externo de lectura de recibos (OCR)',
+    defaultValue: _usesGemini
+        ? 'Google (Gemini) para leer el recibo'
+        : 'un servicio externo de lectura de recibos (OCR)',
   );
+
+  /// `true` si se compiló con clave de Gemini (`SPENDY_GEMINI_API_KEY`).
+  static const bool _usesGemini =
+      String.fromEnvironment('SPENDY_GEMINI_API_KEY').length > 0;
+
+  /// `true` si se compiló con un servicio de OCR en la nube (Gemini o
+  /// `SPENDY_OCR_ENDPOINT`). Si no, la lectura se hace en el teléfono con
+  /// Google ML Kit y la foto no sale del teléfono.
+  static const bool ocrUsesCloud =
+      _usesGemini || String.fromEnvironment('SPENDY_OCR_ENDPOINT').length > 0;
+
+  /// Párrafo del OCR cuando se lee en la nube (RNF-17).
+  static const String cloudOcrParagraph =
+      'Cuando escaneas un recibo, solo la imagen de ese recibo se envía, de '
+      'forma cifrada (HTTPS), a $ocrProviderName para leer el comercio, '
+      'la fecha y el total. Nunca se envían tus montos, notas ni ningún '
+      'otro dato tuyo.';
+
+  /// Párrafo del OCR cuando se lee en el teléfono con ML Kit (RNF-17).
+  static const String onDeviceOcrParagraph =
+      'Cuando escaneas un recibo, el comercio, la fecha y el total se leen '
+      'en este mismo teléfono con Google ML Kit. La foto no se envía a '
+      'ningún servidor. Nunca se envían tus montos, notas ni ningún otro '
+      'dato tuyo.';
 
   static const String title = 'Aviso de privacidad';
 
@@ -29,10 +55,7 @@ class PrivacyTexts {
         'almacenamiento privado de este teléfono. SPENDY no los sube a '
         'ningún servidor ni los comparte con nadie.',
     'Las fotos de tus recibos no aparecen en la galería del teléfono.',
-    'Cuando escaneas un recibo, solo la imagen de ese recibo se envía, de '
-        'forma cifrada (HTTPS), a $ocrProviderName para leer el comercio, '
-        'la fecha y el total. Nunca se envían tus montos, notas ni ningún '
-        'otro dato tuyo.',
+    ocrUsesCloud ? cloudOcrParagraph : onDeviceOcrParagraph,
     'Si no quieres usar la lectura de recibos, puedes registrar tus '
         'movimientos a mano.',
     'Los resúmenes que exportes en CSV o PDF se guardan o se comparten solo '

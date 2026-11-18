@@ -163,7 +163,8 @@ void main() {
 
       expect(find.text('2026'), findsOneWidget);
       expect(find.text(r'$15,000.00'), findsOneWidget);
-      expect(find.text(r'$1,234.56'), findsNWidgets(2));
+      // Egresos del año, centro de la dona y la categoría.
+      expect(find.text(r'$1,234.56'), findsNWidgets(3));
       expect(find.text(r'$13,765.44'), findsOneWidget);
       expect(find.text('Entretenimiento'), findsOneWidget);
       expect(find.text(r'$0.00'), findsNWidgets(5));

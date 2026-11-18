@@ -70,12 +70,20 @@ void main() {
   });
 
   test(
-      'DUP-04 / RNF-17: el aviso dice que todo es local y que solo la '
-      'imagen va al OCR', () {
+      'DUP-04 / RNF-17: el aviso dice que todo es local y cómo se lee el '
+      'recibo', () {
     final text = PrivacyTexts.paragraphs.join(' ');
     expect(text, contains('únicamente en el almacenamiento privado'));
+    expect(text, contains('Nunca se envían tus montos, notas'));
+    // Sin SPENDY_OCR_ENDPOINT la lectura es en el teléfono con ML Kit.
+    expect(PrivacyTexts.ocrUsesCloud, isFalse);
+    expect(text, contains('en este mismo teléfono con Google ML Kit'));
+    expect(text, contains('La foto no se envía a ningún servidor'));
+  });
+
+  test('RNF-17: con OCR en la nube, el aviso nombra al proveedor', () {
+    const text = PrivacyTexts.cloudOcrParagraph;
     expect(text, contains('solo la imagen de ese recibo se envía'));
     expect(text, contains(PrivacyTexts.ocrProviderName));
-    expect(text, contains('Nunca se envían tus montos, notas'));
   });
 }

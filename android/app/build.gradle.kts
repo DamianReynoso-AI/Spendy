@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "mx.zenorbak.spendy"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 37 // permission_handler_android pide 37 o mayor
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -35,6 +35,10 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }

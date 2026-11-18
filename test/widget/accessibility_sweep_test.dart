@@ -95,6 +95,9 @@ void main() {
     final accept = find.text(PrivacyTexts.acceptButton);
     await tester.scrollUntilVisible(accept, 200,
         scrollable: find.byType(Scrollable).first);
+    // Que quede completo en pantalla, no solo asomado en el borde.
+    await tester.ensureVisible(accept);
+    await tester.pumpAndSettle();
     await tester.tap(accept);
     await tester.pumpAndSettle();
   }
@@ -118,12 +121,11 @@ void main() {
     await tester.scrollUntilVisible(amount, 300,
         scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
-    final tile = find.ancestor(
-      of: amount,
-      matching: find.byType(InkWell),
-    );
-    await tester.tapAt(tester.getTopLeft(tile.first) + const Offset(24, 12));
+    // Se toca el monto, que ya quedó a la vista: con texto al 200 % el
+    // renglón completo puede medir más que la lista visible.
+    await tester.tap(amount);
     await tester.pumpAndSettle();
+    expect(find.text('Detalle del movimiento'), findsOneWidget);
     expectNoOverflow(tester, '$label · detalle');
     await back(tester);
 

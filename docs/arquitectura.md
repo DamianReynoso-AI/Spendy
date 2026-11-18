@@ -16,7 +16,9 @@ código difiere del diseño original de la sección 12, se dice.
 La persona solo interactúa con la capa de presentación. La lógica de negocio
 vive en servicios independientes que no conocen Flutter (salvo donde se
 indica) y el acceso a datos queda encapsulado en repositorios. Lo único que
-sale del teléfono es la foto del recibo, y lo hace por un adaptador de OCR.
+sale del teléfono es la foto de un recibo al escanearlo, que se lee con la API
+de Gemini (sección 5.2) a través de un adaptador de OCR; sin clave de Gemini
+se lee en el mismo teléfono con Google ML Kit y no sale nada.
 
 ```mermaid
 flowchart TB
@@ -92,7 +94,7 @@ Persona → M-01 Interfaz ─┬→ M-02 Movimientos ──→ M-03 Categorías
 | M-02 | Gestor de movimientos | Lógica | `lib/modules/movements/` (`movement_service.dart`, `balance_calculator.dart`) | RF-01 a RF-11 | Completo |
 | M-03 | Catálogo de categorías | Lógica | `lib/modules/categories/category_catalog.dart` | RF-12 a RF-14 | Completo |
 | M-04 | Captura de recibos | Lógica | `lib/modules/receipts/` (`camera_service.dart`, `receipt_service.dart`) | RF-15 a RF-22; RNF-12, RNF-14, RNF-21 | Completo |
-| M-05 | Lectura OCR | Lógica | `lib/modules/ocr/` (`ocr_adapter.dart`, `cloud_ocr_adapter.dart`, `mock_ocr_adapter.dart`, `receipt_parser.dart`, `ocr_service.dart`) | RF-23 a RF-31; RNF-13, RNF-16 a RNF-18, RNF-32 | Completo; proveedor real pendiente (sección 5) |
+| M-05 | Lectura OCR | Lógica | `lib/modules/ocr/` (`ocr_adapter.dart`, `gemini_ocr_adapter.dart`, `mlkit_ocr_adapter.dart`, `ocr_layout.dart`, `cloud_ocr_adapter.dart`, `mock_ocr_adapter.dart`, `receipt_parser.dart`, `ocr_service.dart`) | RF-23 a RF-31; RNF-13, RNF-16 a RNF-18, RNF-32 | Completo; proveedor: API de Gemini, con ML Kit en el teléfono como respaldo (sección 5.2) |
 | M-06 | Búsqueda y filtros | Lógica | `lib/modules/search/movement_filter.dart` | RF-32 a RF-35; RNF-09 | Completo |
 | M-07 | Resumen anual | Lógica | `lib/modules/summary/` | RF-36 a RF-40; RNF-10, RNF-33 | Completo |
 | M-08 | Exportador | Lógica | `lib/modules/export/` (`exporter.dart`, `csv_exporter.dart`, `pdf_exporter.dart`, `export_service.dart`) | RF-41 a RF-44; RNF-11, RNF-33, RNF-38 | Completo |
@@ -243,7 +245,9 @@ resumen en 41 ms (medido en el equipo de desarrollo; ver
 
 ```text
 OcrService (M-05)  ──usa──▶  OcrAdapter (interfaz: read(bytes) → texto)
-                                 ├─ CloudOcrAdapter        HTTPS + Bearer, contrato del README
+                                 ├─ GeminiOcrAdapter       API de Gemini (Google AI Studio) por HTTPS (proveedor elegido)
+                                 ├─ MlKitOcrAdapter        Google ML Kit en el teléfono (sin clave de Gemini)
+                                 ├─ CloudOcrAdapter        HTTPS + Bearer, contrato del README (alternativa)
                                  ├─ MockOcrAdapter         pruebas y demo sin red
                                  └─ UnconfiguredOcrAdapter sin configuración: avisa y deja registrar a mano
 ```
@@ -255,26 +259,77 @@ total). Cambiar de proveedor es escribir otra clase que implemente
 pruebas del flujo completo de escaneo usan `MockOcrAdapter`
 (`test/integration/scan_flow_test.dart`).
 
-### 5.2 Proveedor elegido
+### 5.2 Proveedor elegido: API de Gemini (Google AI Studio)
 
-**Pendiente de decisión del equipo (TEC-01, TEC-02).** Al cierre no hay un
-proveedor contratado; la app se entrega con `CloudOcrAdapter`, que funciona
-con cualquier servicio que cumpla el contrato HTTPS del README. Criterios para
-elegirlo, en orden:
+**Decisión (18/11/2026):** en el teléfono de prueba ML Kit no respondió (error
+del servicio al leer). Se cambia a la API de Gemini de Google AI Studio, que
+lee la foto con un modelo multimodal y devuelve el texto del recibo. Lo
+implementa `GeminiOcrAdapter` y `main.dart` lo elige cuando la compilación
+trae `SPENDY_GEMINI_API_KEY`; si no, se usa ML Kit como antes.
 
-| Criterio | Por qué | Requerimiento |
+- Petición: `POST https://generativelanguage.googleapis.com/v1beta/models/<modelo>:generateContent`
+  con la clave en el encabezado `x-goog-api-key` (no en la URL), la foto en
+  `inline_data` (JPEG en base64) y una instrucción fija que pide transcribir
+  el recibo renglón por renglón. El texto pasa al mismo `receipt_parser.dart`.
+- Modelos: primero `gemini-flash-lite-latest` y, si responde saturado (503),
+  sin cuota (429) o retirado (404), `gemini-flash-latest`. Son alias de Google
+  a la versión vigente; se cambian con `SPENDY_GEMINI_MODEL` (lista separada
+  por comas) sin tocar código. En la prueba del 18/11/2026 Flash-Lite leyó un
+  ticket de OXXO completo en unos 6 s; Flash estaba saturado.
+- Errores: sin red → "sin conexión"; código distinto de 200 o respuesta sin
+  texto → "error del servicio". El código HTTP y el `status` de Google quedan
+  en la bitácora (y en pantalla solo con `SPENDY_OCR_DEBUG=true`).
+
+| Criterio | Requerimiento | Gemini (capa gratuita) |
 |---|---|---|
-| No retiene ni usa las imágenes para entrenar | Los recibos tienen datos personales | TEC-02, RNF-17, RNF-51 |
-| HTTPS con TLS 1.2 o superior | Nada viaja sin cifrar | RNF-16 |
-| Precisión ≥ 80 % en el total con 30 recibos mexicanos reales | Meta de aceptación | RNF-42 |
-| Respuesta ≤ 8 s en el 90 % de los intentos | Meta de tiempo | RNF-13 |
-| Clave restringible (por app o con cuota) o uso a través de un proxy | Una clave en el APK se puede extraer | TEC-01, RNF-18 |
-| Costo dentro del plan gratuito para 30 a 100 lecturas | Proyecto académico | Sección 3 |
+| No retiene ni usa las imágenes para entrenar | TEC-02, RNF-17, RNF-51 | **No cumple en la capa gratuita**: Google puede usar lo enviado para mejorar sus productos. En la capa de pago no. Riesgo aceptado para el prototipo; el aviso de privacidad dice que la foto se envía a Google |
+| HTTPS con TLS 1.2 o superior | RNF-16 | Cumple: endpoint fijo `https://` |
+| Precisión ≥ 80 % en el total | RNF-42 | Por medir con `docs/plan_pruebas.md` |
+| Respuesta ≤ 8 s en el 90 % | RNF-13 | Medido: unos 6 s con Flash-Lite; puede tardar más si Google está saturado. El límite de 10 s (RF-30) se mantiene |
+| Clave restringible | TEC-01, RNF-18 | Parcial: la clave va en el APK (ver 5.3); se puede restringir a la API de Gemini en Google Cloud |
+| Costo dentro del plan gratuito | Sección 3 | Cumple con la cuota gratuita diaria |
 
-Cuando se elija, se registra aquí: nombre, fecha, resultado de la prueba de 30
-recibos y política de retención. _[Completar por el equipo.]_
+Pruebas: `test/unit/gemini_ocr_test.dart`.
+
+#### Respaldo: Google ML Kit Text Recognition
+
+**Decisión anterior (17/11/2026):** la lectura se hace en el
+teléfono con Google ML Kit Text Recognition v2 (modelo de texto latino incluido
+en el APK, paquete `google_mlkit_text_recognition`). Lo implementa
+`MlKitOcrAdapter` y `main.dart` lo elige en Android e iOS cuando no hay un
+servicio en la nube configurado.
+
+Cómo cumple los criterios de selección:
+
+| Criterio | Por qué | Requerimiento | ML Kit en el teléfono |
+|---|---|---|---|
+| No retiene ni usa las imágenes para entrenar | Los recibos tienen datos personales | TEC-02, RNF-17, RNF-51 | Cumple: la imagen no sale del teléfono |
+| HTTPS con TLS 1.2 o superior | Nada viaja sin cifrar | RNF-16 | No aplica: no hay transmisión |
+| Precisión ≥ 80 % en el total con 30 recibos mexicanos reales | Meta de aceptación | RNF-42 | Por medir con la prueba de `docs/plan_pruebas.md` |
+| Respuesta ≤ 8 s en el 90 % de los intentos | Meta de tiempo | RNF-13 | Se espera cumplir: lectura local de 1 a 2 s en un teléfono medio, sin red |
+| Clave restringible o uso a través de un proxy | Una clave en el APK se puede extraer | TEC-01, RNF-18 | Cumple: no hay clave |
+| Costo dentro del plan gratuito | Proyecto académico | Sección 3 | Cumple: gratuito y sin cuota |
+
+Otras ventajas: funciona sin internet (uso sin conexión de M-06) y no hay
+servicio que contratar ni mantener. Costos aceptados: el APK crece unos 4 MB
+por arquitectura por el modelo, y la precisión depende de la foto (luz,
+enfoque, ticket completo).
+
+Cómo se arma el texto: ML Kit entrega el texto por bloques y, en un ticket, la
+columna de conceptos ("TOTAL") y la de importes ("$39.50") salen en bloques
+distintos. `ocr_layout.dart` vuelve a juntar los renglones por su posición en
+la foto antes de pasar el texto a `receipt_parser.dart`, que además corrige
+dos errores típicos del OCR: la letra O leída como cero ("T0TAL", "1O0.00") y
+espacios alrededor del punto decimal. Pruebas: `test/unit/mlkit_ocr_test.dart`.
+
+`CloudOcrAdapter` se conserva como alternativa (RNF-32): si se compila con
+`SPENDY_OCR_ENDPOINT` y `SPENDY_OCR_API_KEY`, se usa el servicio en la nube y
+el aviso de privacidad cambia al texto que nombra al proveedor.
 
 ### 5.3 Manejo de la clave (TEC-01, RNF-18)
+
+Aplica a la clave de Gemini (`SPENDY_GEMINI_API_KEY`) y a la de la alternativa
+en la nube. Con ML Kit no hay clave.
 
 - La clave no está en el código ni en el historial de Git (revisado al cierre,
   ver `docs/plan_pruebas.md`, sección 3). Se pasa al compilar con
@@ -287,10 +342,15 @@ recibos y política de retención. _[Completar por el equipo.]_
 
 ### 5.4 Privacidad de las imágenes (TEC-02, RNF-17)
 
-- Al OCR solo se envían los bytes de la foto comprimida (`Content-Type:
-  image/jpeg`); nunca montos, notas, categorías ni PIN.
-- El aviso de privacidad del primer inicio (M-10) informa que un tercero procesa
-  la imagen y lo nombra con `SPENDY_OCR_PROVIDER_NAME`.
+- Con ML Kit la foto se escribe un momento en la carpeta privada
+  (`temp_recibos/`), se lee en el teléfono y el archivo se borra; no se envía.
+  El aviso de privacidad (M-10) lo dice así.
+- Con Gemini solo se envía la foto comprimida y la instrucción fija, nunca
+  montos, notas, categorías ni PIN. El aviso dice que la foto se envía a Google
+  (Gemini).
+- Con la alternativa en la nube, solo se envían los bytes de la foto
+  comprimida (`Content-Type: image/jpeg`), nunca montos, notas, categorías ni
+  PIN, y el aviso nombra al proveedor con `SPENDY_OCR_PROVIDER_NAME`.
 - Las fotos se quedan en la carpeta privada; no se suben a ningún otro lugar.
 
 ## 6. Decisiones de diseño y sus razones

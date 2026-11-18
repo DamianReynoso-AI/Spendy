@@ -115,6 +115,10 @@ class OcrService {
 
   static const String module = 'M-05';
 
+  /// Solo en compilaciones de diagnóstico (`--dart-define=SPENDY_OCR_DEBUG=true`)
+  /// el mensaje incluye la causa técnica, para depurar en un teléfono.
+  static const bool _diagnostic = bool.fromEnvironment('SPENDY_OCR_DEBUG');
+
   final OcrAdapter _adapter;
   final ErrorLogger _logger;
   final ReceiptParser _parser;
@@ -151,7 +155,9 @@ class OcrService {
     final kind = e is OcrException ? e.kind : OcrFailureKind.server;
     final error = AppError(
       type: ErrorType.ocr,
-      message: OcrMessages.forKind(kind),
+      message: _diagnostic
+          ? '${OcrMessages.forKind(kind)}\n\n[diagnóstico] $e'
+          : OcrMessages.forKind(kind),
     );
     if (request._finish(OcrFailed(kind, error))) {
       _logger.log(type: ErrorType.ocr, module: module, cause: e);

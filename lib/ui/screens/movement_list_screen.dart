@@ -15,6 +15,7 @@ import '../../modules/movements/movement_service.dart';
 import '../../modules/receipts/camera_service.dart';
 import '../../modules/receipts/receipt_service.dart';
 import '../../modules/search/movement_filter.dart';
+import '../theme/spendy_theme.dart';
 import '../widgets/filter_bar.dart';
 import 'movement_detail_screen.dart';
 import 'movement_form_screen.dart';
@@ -27,11 +28,19 @@ import 'scan_screen.dart';
 class MovementColors {
   MovementColors._();
 
-  /// Verde oscuro, contraste de 9.0:1 con blanco.
-  static const Color income = Color(0xFF1B5E20);
+  /// Verde azulado del tema claro, contraste de 5.7:1 con blanco.
+  static const Color income = Color(0xFF0A7368);
 
-  /// Rojo oscuro, contraste de 6.6:1 con blanco.
-  static const Color expense = Color(0xFFB71C1C);
+  /// Coral del tema claro, contraste de 5.4:1 con blanco.
+  static const Color expense = Color(0xFFBF3A2B);
+
+  /// Color de ingreso del tema actual (claro u oscuro).
+  static Color incomeOf(BuildContext context) =>
+      SpendyPalette.of(context).income;
+
+  /// Color de egreso del tema actual (claro u oscuro).
+  static Color expenseOf(BuildContext context) =>
+      SpendyPalette.of(context).expense;
 }
 
 /// Lista de movimientos con acceso al formulario y al detalle.
@@ -51,6 +60,7 @@ class MovementListScreen extends StatefulWidget {
     this.camera,
     this.actions = const [],
     this.filter,
+    this.title,
   });
 
   final MovementService service;
@@ -68,11 +78,16 @@ class MovementListScreen extends StatefulWidget {
   /// Búsqueda y filtros (M-06). Sin él no se muestra la barra de filtros.
   final MovementFilter? filter;
 
+  /// Título de la barra superior; por defecto, "Movimientos".
+  final Widget? title;
+
   @override
-  State<MovementListScreen> createState() => _MovementListScreenState();
+  State<MovementListScreen> createState() => MovementListScreenState();
 }
 
-class _MovementListScreenState extends State<MovementListScreen> {
+/// Estado público para que la pantalla de inicio abra el formulario o el
+/// escaneo desde sus accesos rápidos.
+class MovementListScreenState extends State<MovementListScreen> {
   List<MovementItem> _items = const [];
   bool _loading = true;
   String? _error;
@@ -151,7 +166,8 @@ class _MovementListScreenState extends State<MovementListScreen> {
 
   void _clearFilters() => _changeCriteria(const MovementCriteria());
 
-  Future<void> _openForm() async {
+  /// Abre el formulario de registro, con [type] ya elegido si se indica.
+  Future<void> openForm([MovementType? type]) async {
     final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => MovementFormScreen(
@@ -159,6 +175,7 @@ class _MovementListScreenState extends State<MovementListScreen> {
           catalog: widget.catalog,
           receipts: widget.receipts,
           camera: widget.camera,
+          initialType: type ?? MovementType.egreso,
         ),
       ),
     );
@@ -189,12 +206,12 @@ class _MovementListScreenState extends State<MovementListScreen> {
     await _refresh();
   }
 
-  bool get _canScan => widget.receipts != null && widget.camera != null;
+  bool get canScan => widget.receipts != null && widget.camera != null;
 
   /// "Escanear recibo": cámara, lectura OCR y revisión (RF-23 a RF-26). Si
   /// no se leyó (cancelar, error o ilegible) se abre el registro manual con
   /// la foto adjunta (CA-075, CA-077 a CA-080).
-  Future<void> _scanReceipt() async {
+  Future<void> scanReceipt() async {
     final receipts = widget.receipts!;
     final camera = widget.camera!;
     final outcome = await Navigator.of(context).push<ScanOutcome>(
@@ -251,11 +268,11 @@ class _MovementListScreenState extends State<MovementListScreen> {
         !_loading && _error == null && (_items.isNotEmpty || _filtering);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Movimientos'),
+        title: widget.title ?? const Text('Movimientos'),
         actions: [
-          if (_canScan)
+          if (canScan)
             IconButton(
-              onPressed: _scanReceipt,
+              onPressed: scanReceipt,
               icon: const Icon(Icons.document_scanner_outlined),
               tooltip: 'Escanear recibo',
             ),
@@ -265,7 +282,7 @@ class _MovementListScreenState extends State<MovementListScreen> {
       body: SafeArea(child: _body()),
       floatingActionButton: showFab
           ? FloatingActionButton.extended(
-              onPressed: _openForm,
+              onPressed: openForm,
               icon: const Icon(Icons.add),
               label: const Text('Registrar'),
             )
@@ -289,7 +306,7 @@ class _MovementListScreenState extends State<MovementListScreen> {
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (i > offset) const Divider(height: 1),
+            if (i > offset) const Divider(height: 1, indent: 74, endIndent: 16),
             MovementTile(item: item, onTap: () => _openDetail(item)),
           ],
         );
@@ -349,7 +366,7 @@ class _MovementListScreenState extends State<MovementListScreen> {
         title: 'Aún no tienes movimientos',
         text: 'Registra tu primer ingreso o egreso para verlo aquí.',
         actionLabel: 'Registrar mi primer movimiento',
-        onAction: _openForm,
+        onAction: openForm,
       );
     }
     return const SizedBox.shrink();
@@ -400,7 +417,8 @@ class _CenteredMessage extends StatelessWidget {
   }
 }
 
-/// Un renglón de la lista. Todo va en columna para que con texto al 200 %
+/// Un renglón de la lista: ícono del tipo, categoría, fecha y monto. Con
+/// texto grande (más de 130 %) el monto baja a su propia línea para que
 /// nada se corte (RNF-06). Al tocarlo abre el detalle.
 class MovementTile extends StatelessWidget {
   const MovementTile({super.key, required this.item, this.onTap});
@@ -410,8 +428,6 @@ class MovementTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color =
-        item.isIncome ? MovementColors.income : MovementColors.expense;
     final typeLabel = item.isIncome ? 'Ingreso' : 'Egreso';
     return Semantics(
       label: '$typeLabel de ${item.formattedAmount}, ${item.categoryName}, '
@@ -419,43 +435,72 @@ class MovementTile extends StatelessWidget {
       hint: onTap == null ? null : 'Toca para ver, editar o eliminar',
       button: onTap != null,
       excludeSemantics: true,
-      child: InkWell(onTap: onTap, child: _content(context, color, typeLabel)),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: _content(context, typeLabel),
+      ),
     );
   }
 
-  Widget _content(BuildContext context, Color color, String typeLabel) {
-    final sign = item.isIncome ? '+' : '−';
+  Widget _content(BuildContext context, String typeLabel) {
+    final palette = SpendyPalette.of(context);
+    final color = item.isIncome ? palette.income : palette.expense;
     final textTheme = Theme.of(context).textTheme;
     final description = item.description;
+    final amount = Text(
+      '${item.isIncome ? '+' : '−'}${item.formattedAmount}',
+      style: textTheme.titleMedium
+          ?.copyWith(color: color, fontWeight: FontWeight.w700),
+    );
+    final stacked = MediaQuery.textScalerOf(context).scale(10) > 13;
+    final details = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(item.categoryName,
+            style:
+                textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+        Text('$typeLabel · ${item.formattedDate}',
+            style: textTheme.bodySmall?.copyWith(color: palette.muted)),
+        if (description != null) Text(description, style: textTheme.bodyMedium),
+        if (stacked) amount,
+      ],
+    );
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(
-            item.isIncome ? Icons.arrow_downward : Icons.arrow_upward,
-            color: color,
-            size: 28,
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(item.categoryName, style: textTheme.titleMedium),
-                Text(
-                  '$sign${item.formattedAmount}',
-                  style: textTheme.titleMedium?.copyWith(
-                    color: color,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text('$typeLabel · ${item.formattedDate}'),
-                if (description != null) Text(description),
-              ],
-            ),
-          ),
+          _TypeIcon(isIncome: item.isIncome),
+          const SizedBox(width: 14),
+          Expanded(child: details),
+          if (!stacked) ...[const SizedBox(width: 8), amount],
         ],
+      ),
+    );
+  }
+}
+
+/// Círculo suave con la flecha del tipo de movimiento.
+class _TypeIcon extends StatelessWidget {
+  const _TypeIcon({required this.isIncome});
+
+  final bool isIncome;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = SpendyPalette.of(context);
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: isIncome ? palette.incomeSoft : palette.expenseSoft,
+      ),
+      child: Icon(
+        isIncome ? Icons.south_west_rounded : Icons.north_east_rounded,
+        color: isIncome ? palette.income : palette.expense,
+        size: 22,
       ),
     );
   }

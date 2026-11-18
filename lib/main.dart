@@ -22,6 +22,8 @@ import 'modules/categories/category_catalog.dart';
 import 'modules/export/export_service.dart';
 import 'modules/movements/movement_service.dart';
 import 'modules/ocr/cloud_ocr_adapter.dart';
+import 'modules/ocr/gemini_ocr_adapter.dart';
+import 'modules/ocr/mlkit_ocr_adapter.dart';
 import 'modules/ocr/ocr_adapter.dart';
 import 'modules/ocr/ocr_service.dart';
 import 'modules/privacy/onboarding_service.dart';
@@ -65,18 +67,24 @@ Future<LockController> _lockController(
   return lock;
 }
 
-/// Proveedor de OCR leído de la configuración externa (RNF-18). Sin
-/// configuración, o con un endpoint que no es HTTPS (RNF-16), la lectura
-/// no está disponible y la persona registra a mano con la foto.
-OcrAdapter _ocrAdapter() {
+/// Proveedor de OCR (RNF-32). Si se configuró un servicio en la nube
+/// (RNF-18) se usa ese; si no, en Android e iOS se lee en el teléfono con
+/// ML Kit (sección 5.2 de docs/arquitectura.md). Con un endpoint que no es
+/// HTTPS (RNF-16) la lectura no está disponible y se registra a mano.
+/// Elige el proveedor de OCR: Gemini si hay clave de Google AI Studio, el
+/// servicio HTTPS genérico si hay endpoint, y si no ML Kit en el teléfono.
+OcrAdapter _ocrAdapter(ImageStore store) {
+  final gemini = GeminiOcrConfig.fromEnvironment();
+  if (gemini != null) return GeminiOcrAdapter(gemini);
   try {
     final config = CloudOcrConfig.fromEnvironment();
-    return config == null
-        ? const UnconfiguredOcrAdapter()
-        : CloudOcrAdapter(config);
+    if (config != null) return CloudOcrAdapter(config);
   } on ArgumentError {
     return const UnconfiguredOcrAdapter();
   }
+  return Platform.isAndroid || Platform.isIOS
+      ? MlKitOcrAdapter(workDir: store.tempDir)
+      : const UnconfiguredOcrAdapter();
 }
 
 Future<void> main() async {
@@ -91,7 +99,7 @@ Future<void> main() async {
       store: store,
       repository: ReceiptRepository(db, store),
       logger: logger,
-      ocr: OcrService(adapter: _ocrAdapter(), logger: logger),
+      ocr: OcrService(adapter: _ocrAdapter(store), logger: logger),
     );
     // Limpia capturas temporales y recibos sin registro (TEC-06, RNF-21).
     await receipts.cleanOrphans();

@@ -24,12 +24,17 @@ enum OcrFailureKind {
 
 /// Fallo controlado de un [OcrAdapter].
 class OcrException implements Exception {
-  const OcrException(this.kind);
+  const OcrException(this.kind, [this.detail]);
 
   final OcrFailureKind kind;
 
+  /// Causa técnica (por ejemplo, el código HTTP). Solo va a la bitácora y
+  /// al modo de diagnóstico; nunca se muestra en el mensaje normal.
+  final String? detail;
+
   @override
-  String toString() => 'OcrException: ${kind.name}';
+  String toString() =>
+      'OcrException: ${kind.name}${detail == null ? '' : ' ($detail)'}';
 }
 
 /// Permite detener una petición en curso (RF-31). Las implementaciones

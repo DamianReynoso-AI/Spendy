@@ -80,9 +80,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       : _openPin(PinSetupMode.disable, SettingsTexts.deactivated);
 
   Future<void> _toggleBiometrics(bool on) async {
-    final result = on
-        ? await _lock.biometrics.enable()
-        : await _lock.biometrics.disable();
+    final result =
+        on ? await _lock.biometrics.enable() : await _lock.biometrics.disable();
     if (!mounted) return;
     if (result case Failure(:final error)) _snack(error.message);
     await _load();
