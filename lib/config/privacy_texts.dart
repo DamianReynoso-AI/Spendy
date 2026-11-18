@@ -15,14 +15,20 @@ class PrivacyTexts {
   /// genérica.
   static const String ocrProviderName = String.fromEnvironment(
     'SPENDY_OCR_PROVIDER_NAME',
-    defaultValue: 'un servicio externo de lectura de recibos (OCR)',
+    defaultValue: _usesGemini
+        ? 'Google (Gemini) para leer el recibo'
+        : 'un servicio externo de lectura de recibos (OCR)',
   );
 
-  /// `true` si se compiló con un servicio de OCR en la nube
-  /// (`SPENDY_OCR_ENDPOINT`). Si no, la lectura se hace en el teléfono con
+  /// `true` si se compiló con clave de Gemini (`SPENDY_GEMINI_API_KEY`).
+  static const bool _usesGemini =
+      String.fromEnvironment('SPENDY_GEMINI_API_KEY').length > 0;
+
+  /// `true` si se compiló con un servicio de OCR en la nube (Gemini o
+  /// `SPENDY_OCR_ENDPOINT`). Si no, la lectura se hace en el teléfono con
   /// Google ML Kit y la foto no sale del teléfono.
   static const bool ocrUsesCloud =
-      String.fromEnvironment('SPENDY_OCR_ENDPOINT').length > 0;
+      _usesGemini || String.fromEnvironment('SPENDY_OCR_ENDPOINT').length > 0;
 
   /// Párrafo del OCR cuando se lee en la nube (RNF-17).
   static const String cloudOcrParagraph =

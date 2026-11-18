@@ -22,6 +22,7 @@ import 'modules/categories/category_catalog.dart';
 import 'modules/export/export_service.dart';
 import 'modules/movements/movement_service.dart';
 import 'modules/ocr/cloud_ocr_adapter.dart';
+import 'modules/ocr/gemini_ocr_adapter.dart';
 import 'modules/ocr/mlkit_ocr_adapter.dart';
 import 'modules/ocr/ocr_adapter.dart';
 import 'modules/ocr/ocr_service.dart';
@@ -70,7 +71,11 @@ Future<LockController> _lockController(
 /// (RNF-18) se usa ese; si no, en Android e iOS se lee en el teléfono con
 /// ML Kit (sección 5.2 de docs/arquitectura.md). Con un endpoint que no es
 /// HTTPS (RNF-16) la lectura no está disponible y se registra a mano.
+/// Elige el proveedor de OCR: Gemini si hay clave de Google AI Studio, el
+/// servicio HTTPS genérico si hay endpoint, y si no ML Kit en el teléfono.
 OcrAdapter _ocrAdapter(ImageStore store) {
+  final gemini = GeminiOcrConfig.fromEnvironment();
+  if (gemini != null) return GeminiOcrAdapter(gemini);
   try {
     final config = CloudOcrConfig.fromEnvironment();
     if (config != null) return CloudOcrAdapter(config);

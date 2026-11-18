@@ -37,7 +37,7 @@ class _NoNetwork extends HttpOverrides {
 void main() {
   sqfliteFfiInit();
 
-  test('RF-52: en lib/ solo el adaptador de OCR usa red', () {
+  test('RF-52: en lib/ solo los adaptadores de OCR en la nube usan red', () {
     final pattern = RegExp(r'HttpClient|Socket|package:http/|WebSocket');
     final offenders = Directory('lib')
         .listSync(recursive: true)
@@ -46,8 +46,10 @@ void main() {
         .where((f) => pattern.hasMatch(f.readAsStringSync()))
         .map((f) => p.relative(f.path))
         .toList();
-    expect(
-        offenders, [p.join('lib', 'modules', 'ocr', 'cloud_ocr_adapter.dart')]);
+    expect(offenders.toSet(), {
+      p.join('lib', 'modules', 'ocr', 'cloud_ocr_adapter.dart'),
+      p.join('lib', 'modules', 'ocr', 'gemini_ocr_adapter.dart'),
+    });
   });
 
   test('CA-144: sin red se registra, filtra y resume; el OCR avisa', () async {
