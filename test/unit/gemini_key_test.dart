@@ -167,4 +167,33 @@ void main() {
       expect(r.errorOrNull!.message, OcrKeyMessages.saveFailed);
     });
   });
+
+  group('Clave del equipo compilada en el APK', () {
+    test('la clave compilada se usa sin variables de entorno', () {
+      final config = GeminiOcrConfig.fromEnvironment(
+        environment: const {},
+        compiledKey: validKey,
+      );
+      expect(config, isNotNull);
+      expect(config!.apiKey, validKey);
+      expect(config.models, GeminiEnvironment.defaultModels);
+    });
+
+    test('la clave compilada gana sobre la del entorno', () {
+      final config = GeminiOcrConfig.fromEnvironment(
+        environment: const {
+          GeminiEnvironment.apiKeyKey: 'otra-clave-123456789012'
+        },
+        compiledKey: validKey,
+      );
+      expect(config!.apiKey, validKey);
+    });
+
+    test('sin clave compilada ni de entorno no hay Gemini', () {
+      expect(
+        GeminiOcrConfig.fromEnvironment(environment: const {}, compiledKey: ''),
+        isNull,
+      );
+    });
+  });
 }

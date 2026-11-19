@@ -49,8 +49,9 @@ void main() {
       );
 
   group('OcrService', () {
-    test('RF-30 / RNF-26: el tiempo límite es de 10 s exactos', () {
-      expect(AppConfig.ocrTimeout, const Duration(seconds: 10));
+    test('RF-30 / RNF-26: el tiempo límite es de 45 s (Gemini tarda ~10 s)',
+        () {
+      expect(AppConfig.ocrTimeout, const Duration(seconds: 45));
     });
 
     test('CA-062: lectura correcta devuelve los datos y el tiempo', () async {

@@ -34,9 +34,11 @@ class AppConfig {
   /// dejar el teléfono sin espacio (RF-22).
   static const int freeSpaceMarginBytes = 1048576;
 
-  /// Tiempo máximo de espera de la lectura OCR: 10 segundos exactos
-  /// (RF-30, RNF-26).
-  static const Duration ocrTimeout = Duration(seconds: 10);
+  /// Tiempo máximo de espera de la lectura OCR (RF-30, RNF-26). Era de 10
+  /// segundos, pero Gemini tarda unos 10 s por recibo (medido el
+  /// 19/11/2026) y a veces hay que probar un segundo modelo; con 10 s la
+  /// lectura casi siempre se cortaba.
+  static const Duration ocrTimeout = Duration(seconds: 45);
 
   /// Meta de tiempo de la lectura OCR en al menos el 90 % de los intentos
   /// (RNF-13, CA-065).

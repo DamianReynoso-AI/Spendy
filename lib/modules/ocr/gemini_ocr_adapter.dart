@@ -18,10 +18,11 @@
 /// 200 OK  {"candidates":[{"content":{"parts":[{"text":"{\"total\":...}"}]}}]}
 /// ```
 ///
-/// La clave la captura la persona en Ajustes y vive en el almacenamiento
-/// seguro del teléfono (TEC-01): nunca va dentro del APK ni en el
-/// repositorio. Para desarrollo en escritorio también se lee de la variable
-/// de entorno `SPENDY_GEMINI_API_KEY`.
+/// La clave es la del equipo (Google AI Studio) y se inyecta al compilar
+/// con `--dart-define=SPENDY_GEMINI_API_KEY=...`. Nunca va en el
+/// repositorio. Quien tenga el APK puede extraerla, así que en AI Studio
+/// debe tener límite de cuota (ver docs/firma_release.md). Para desarrollo
+/// en escritorio también se lee de la variable de entorno del mismo nombre.
 library;
 
 import 'dart:convert';
@@ -46,9 +47,12 @@ class GeminiEnvironment {
     'gemini-flash-latest',
   ];
 
-  /// El modelo sí se puede fijar al compilar (no es un secreto). La clave
-  /// no: compilada dentro del APK cualquiera podría extraerla (TEC-01).
+  /// Modelo fijado al compilar (opcional).
   static const String compiledModel = String.fromEnvironment(modelKey);
+
+  /// Clave del equipo, inyectada al compilar. Vacía en pruebas y en
+  /// compilaciones sin `--dart-define`.
+  static const String compiledApiKey = String.fromEnvironment(apiKeyKey);
 }
 
 /// Clave y modelos de Gemini.
@@ -80,9 +84,12 @@ class GeminiOcrConfig {
 
   /// Lee la configuración de [environment] (por defecto, las variables del
   /// sistema; útil en escritorio y en pruebas). `null` si no hay clave.
-  static GeminiOcrConfig? fromEnvironment({Map<String, String>? environment}) {
+  static GeminiOcrConfig? fromEnvironment({
+    Map<String, String>? environment,
+    String compiledKey = GeminiEnvironment.compiledApiKey,
+  }) {
     final env = environment ?? Platform.environment;
-    final key = _pick('', env[GeminiEnvironment.apiKeyKey]);
+    final key = _pick(compiledKey, env[GeminiEnvironment.apiKeyKey]);
     if (key == null) return null;
     final model =
         _pick(GeminiEnvironment.compiledModel, env[GeminiEnvironment.modelKey]);

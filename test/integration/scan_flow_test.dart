@@ -6,6 +6,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:spendy/config/app_config.dart';
 import 'package:spendy/app.dart';
 import 'package:spendy/core/error_logger.dart';
 import 'package:spendy/core/validators.dart';
@@ -216,16 +217,18 @@ void main() {
     expect(find.text('Foto del recibo adjunta'), findsOneWidget);
   });
 
-  testWidgets('CA-079: más de 10 s es tiempo agotado', (tester) async {
-    ocr.delay = const Duration(seconds: 30);
+  testWidgets('CA-079: pasar el tiempo límite es tiempo agotado',
+      (tester) async {
+    ocr.delay = const Duration(seconds: 60);
     await pumpApp(tester);
     await scanAndUse(tester);
-    await tester.pump(const Duration(seconds: 9));
+    // Gemini tarda ~10 s: a los 12 s la lectura sigue en curso.
+    await tester.pump(const Duration(seconds: 12));
     expect(find.text('Leyendo el recibo…'), findsOneWidget);
-    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(AppConfig.ocrTimeout - const Duration(seconds: 12));
     await tester.pumpAndSettle();
     expect(find.text(OcrMessages.timeout), findsOneWidget);
-    await tester.pump(const Duration(seconds: 30));
+    await tester.pump(const Duration(seconds: 60));
   });
 
   testWidgets(
