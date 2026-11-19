@@ -1,12 +1,14 @@
 # Manual de usuario de SPENDY
 
-Versión 1.0 · noviembre de 2026 · Zenorbak 2
+Versión 1.1 · 19 de noviembre de 2026 · Zenorbak 2
 
 SPENDY te ayuda a anotar lo que ganas y lo que gastas, guardar la foto de tus
-recibos y saber cuánto te queda cada mes. No necesitas saber de contabilidad:
-solo anotas cuánto, cuándo y en qué.
+recibos, poner un límite de gasto por categoría y saber cómo vas en el mes.
+No necesitas saber de contabilidad: solo anotas cuánto, cuándo y en qué.
 
-Todo lo que registras se queda **solo en tu teléfono**. Nadie más lo ve.
+Todo lo que registras se queda **solo en tu teléfono**. SPENDY no tiene
+cuentas ni servidores. Lo único que sale del teléfono es la foto de un recibo
+cuando lo escaneas, para que Gemini de Google lo lea (sección 6).
 
 > Las imágenes de este manual se tomaron de la app con datos de ejemplo. En
 > tu teléfono los colores y tamaños pueden variar un poco.
@@ -14,18 +16,18 @@ Todo lo que registras se queda **solo en tu teléfono**. Nadie más lo ve.
 ## Contenido
 
 1. Primer inicio: el aviso de privacidad
-2. Registrar un gasto o un ingreso
-3. Ver tus movimientos y el balance del mes
-4. Corregir o eliminar un movimiento
-5. Escanear un recibo con la cámara
-6. Buscar y filtrar movimientos
-7. Ver el resumen del año y exportarlo
-8. Proteger la app con un PIN
-9. Si algo sale mal
-10. Presupuestos por categoría
-11. "Tu mes": cómo vas contra el mes pasado
-12. Leer recibos con Gemini
-13. Copia de seguridad
+2. Cómo se mueve uno en la app
+3. La pantalla de Inicio
+4. Registrar un gasto o un ingreso
+5. Ver, corregir o eliminar un movimiento
+6. Escanear un recibo (lectura con Gemini)
+7. Buscar y filtrar movimientos
+8. Resumen del año y exportarlo
+9. Presupuestos por categoría
+10. "Tu mes": cómo vas contra el mes pasado
+11. Proteger la app con PIN y huella
+12. Copia de seguridad
+13. Si algo sale mal
 
 Palabras que vas a ver:
 
@@ -35,66 +37,93 @@ Palabras que vas a ver:
 | Ingreso | Dinero que entra: tu sueldo, una venta, un regalo. |
 | Movimiento | Cualquier egreso o ingreso que anotas. |
 | Balance | Lo que entró menos lo que salió en el mes. |
+| Presupuesto | El máximo que quieres gastar al mes en una categoría. |
 | OCR | La lectura automática del recibo: la app "lee" la foto y llena los datos por ti. |
 
 ## 1. Primer inicio: el aviso de privacidad
 
 La primera vez que abres SPENDY aparece el **Aviso de privacidad**. Explica
-que tus datos se guardan solo en el teléfono y que, si escaneas un recibo,
-solo la foto se envía de forma cifrada a un servicio que la lee.
+qué datos guarda la app, que todo se queda en el teléfono y que la foto de
+cada recibo que escanees se envía cifrada a Google (Gemini) para leerla.
 
-1. Lee el aviso (desliza hacia arriba si no cabe en la pantalla).
+1. Lee el aviso completo (desliza hacia arriba).
 2. Toca **Acepto**.
 
-Solo lo verás una vez. Sin aceptarlo no se puede usar la app.
+Sin aceptarlo no se puede usar la app. Si el aviso cambia en una versión
+nueva, la app te lo vuelve a mostrar. Puedes leerlo cuando quieras en
+**Ajustes › Aviso de privacidad**.
 
-<img src="img/manual/01_aviso_privacidad.png" alt="Aviso de privacidad con el botón Acepto" width="260">
+<img src="img/manual/01_aviso_privacidad.png" alt="Aviso de privacidad" width="260">
 
-## 2. Registrar un gasto o un ingreso
+## 2. Cómo se mueve uno en la app
 
-Al principio la lista está vacía y el balance está en $0.00.
+Abajo siempre está la barra con cinco botones:
 
-<img src="img/manual/02_inicio_vacio.png" alt="Pantalla principal sin movimientos" width="260">
+| Botón | Para qué sirve |
+|---|---|
+| **Inicio** | Tu balance del mes, accesos rápidos, "Tu mes", presupuestos y movimientos recientes. |
+| **Movimientos** | La lista completa, con búsqueda y filtros. |
+| **Escanear** (el círculo del centro) | Abre la cámara para leer un recibo. |
+| **Resumen** | Los totales del año y la gráfica de gastos por categoría. |
+| **Ajustes** | PIN, huella, presupuestos, copia de seguridad y aviso de privacidad. |
 
-1. Toca **Registrar mi primer movimiento** (o **Registrar**, abajo a la
-   derecha, cuando ya tengas movimientos).
-2. Arriba elige **Egreso** (gasto) o **Ingreso**.
-3. Escribe el **Monto**. Usa punto para los centavos: `350` o `350.50`.
+En **Inicio** y **Movimientos** también está el botón **+ Registrar**, abajo
+a la derecha, para anotar un movimiento a mano.
+
+## 3. La pantalla de Inicio
+
+De arriba hacia abajo verás:
+
+- La fecha de hoy y un saludo.
+- La tarjeta azul con el **Balance** del mes en curso (ingresos menos
+  egresos) y, debajo, cuánto entró y cuánto salió. Toca el **ojo** para
+  ocultar los montos si alguien está viendo tu pantalla; tócalo otra vez para
+  mostrarlos.
+- Tres accesos rápidos: **Ingreso**, **Egreso** y **Escanear**.
+- La tarjeta **Tu mes** (sección 10).
+- La tarjeta **Presupuestos** del mes (sección 9).
+- **Movimientos recientes**, con la misma búsqueda y filtros de la pestaña
+  Movimientos.
+
+<img src="img/manual/02_inicio.png" alt="Pantalla de Inicio con balance, accesos rápidos y Tu mes" width="260"> <img src="img/manual/03_inicio_presupuestos.png" alt="Inicio: presupuestos y movimientos recientes" width="260">
+
+Los montos se ven siempre como `$1,234.56` y las fechas como `DD/MM/AAAA`,
+aunque tu teléfono esté en otro idioma.
+
+## 4. Registrar un gasto o un ingreso
+
+1. En Inicio toca **Egreso** o **Ingreso** (o **+ Registrar** y elige arriba
+   **Egreso** o **Ingreso**).
+2. Escribe el **Monto**. Usa punto para los centavos: `350` o `350.50`.
    El máximo es $9,999,999.99.
-4. La **Fecha** ya trae el día de hoy. Tócala para cambiarla. No se aceptan
-   fechas futuras.
-5. Elige la **Categoría** (por ejemplo, Alimentos o Transporte).
-6. Si es un gasto, elige el **Método de pago**: Efectivo, Débito, Crédito o
+3. La **Fecha** ya trae el día de hoy. Toca el calendario para cambiarla. No
+   se aceptan fechas futuras.
+4. Elige la **Categoría**. Gastos: Alimentos, Transporte, Vivienda,
+   Servicios, Entretenimiento u Otros. Ingresos: Sueldos y salarios u Otros
+   ingresos.
+5. Si es un gasto, elige el **Método de pago**: Efectivo, Débito, Crédito o
    Transferencia.
-7. Si quieres, escribe una **Descripción o comercio** (hasta 60 letras) y una
-   **Nota** (hasta 200).
-8. Toca **Guardar**.
+6. Si quieres, escribe una **Descripción o comercio** (hasta 60 letras) y una
+   **Nota** (hasta 200). Desde aquí también puedes tocar **Escanear recibo**.
+7. Toca **Guardar**.
 
 Los campos con `*` son obligatorios. Si falta alguno o el monto no es válido,
 la app marca el campo en rojo y te dice qué corregir; lo que ya escribiste no
 se borra.
 
-<img src="img/manual/03_formulario_egreso.png" alt="Formulario para registrar un egreso" width="260">
+Si el gasto te acerca a tu presupuesto de esa categoría (80 % o más) o te
+pasas, al guardar aparece un aviso abajo, por ejemplo "Ya usaste el 94 % del
+presupuesto de Alimentos".
 
-## 3. Ver tus movimientos y el balance del mes
+<img src="img/manual/04_formulario_egreso.png" alt="Formulario para registrar un egreso" width="260">
 
-La pantalla principal muestra:
+## 5. Ver, corregir o eliminar un movimiento
 
-- Arriba, el **Balance** del mes en curso: ingresos menos egresos. En verde si
-  es positivo.
-- Debajo, la barra de **búsqueda y filtros** (ver sección 6).
-- La **lista** de movimientos, del más reciente al más antiguo. Los ingresos
-  llevan una flecha verde hacia abajo y signo `+`; los egresos, una flecha roja
-  hacia arriba y signo `−`.
+La pestaña **Movimientos** muestra todos, del más reciente al más antiguo.
+Los ingresos llevan una flecha verde y signo `+`; los egresos, una flecha
+roja y signo `−`. Si tienes muchos, se van cargando al bajar.
 
-<img src="img/manual/04_inicio_con_balance.png" alt="Pantalla principal con balance y lista" width="260">
-
-Los montos se ven siempre como `$1,234.56` y las fechas como `DD/MM/AAAA`,
-aunque tu teléfono esté en otro idioma.
-
-## 4. Corregir o eliminar un movimiento
-
-1. En la lista, toca el movimiento. Se abre el **Detalle del movimiento**.
+1. Toca un movimiento. Se abre el **Detalle del movimiento**.
 2. Para corregirlo, toca **Editar**, cambia lo que necesites y toca
    **Guardar**. El balance se actualiza solo.
 3. Para borrarlo, toca **Eliminar**. La app te pide confirmar:
@@ -103,155 +132,217 @@ aunque tu teléfono esté en otro idioma.
 
 Eliminar no se puede deshacer.
 
-<img src="img/manual/05_detalle.png" alt="Detalle de un movimiento con Editar y Eliminar" width="260"> <img src="img/manual/06_confirmar_eliminar.png" alt="Confirmación antes de eliminar" width="260">
+<img src="img/manual/05_movimientos.png" alt="Lista de movimientos" width="260"> <img src="img/manual/06_detalle.png" alt="Detalle de un movimiento con Editar y Eliminar" width="260"> <img src="img/manual/07_confirmar_eliminar.png" alt="Confirmación antes de eliminar" width="260">
 
 En el detalle de un gasto también puedes **Agregar recibo**, verlo en grande
 (toca la miniatura y usa dos dedos para acercar), **Reemplazar** la foto o
 **Quitar recibo**.
 
-## 5. Escanear un recibo con la cámara
+## 6. Escanear un recibo (lectura con Gemini)
 
 Con esta función no tienes que escribir el total, la fecha ni el comercio: la
-app los lee de la foto.
+app los lee de la foto con Gemini, la inteligencia artificial de Google. **No
+tienes que configurar nada ni capturar ninguna clave**: ya viene lista en la
+app. Necesitas internet.
 
-1. En la pantalla principal toca el ícono de **Escanear recibo** (arriba a la
-   derecha) o, dentro del formulario, el botón **Escanear recibo**.
+1. Toca **Escanear** (el círculo del centro de la barra o el acceso rápido de
+   Inicio).
 2. La primera vez, el teléfono te pide permiso para usar la cámara. Toca
-   **Permitir**. Si lo niegas, puedes registrar a mano; la app te dice cómo
-   activarlo después en Ajustes.
-3. Pon el recibo sobre una superficie plana, con buena luz, y toca **Tomar
-   foto**.
+   **Permitir**. Si lo niegas, puedes registrar a mano; la app te ofrece
+   **Abrir Ajustes** para activarlo después.
+3. Pon el recibo completo sobre una superficie plana, con buena luz, y toca
+   **Tomar foto**.
 4. Revisa la foto. Si salió borrosa toca **Repetir**; si se ve bien, toca
    **Usar foto**.
-5. Aparece **Leyendo el recibo…**. Tarda unos segundos. Puedes tocar
-   **Cancelar** si no quieres esperar.
+5. Aparece **Leyendo el recibo…** Normalmente tarda unos 10 segundos y
+   **puede tardar hasta 45**. Espera sin salir de la pantalla; si no quieres
+   esperar, toca **Cancelar**.
 6. Se abre **Revisar recibo** con el monto, la fecha y el comercio ya
-   escritos. **Revísalos**: la lectura puede equivocarse. Los datos que no se
-   pudieron leer quedan vacíos y marcados.
+   escritos y la foto adjunta. **Revísalos**: la lectura puede equivocarse.
+   Lo que no se pudo leer queda vacío y marcado ("No se pudo leer;
+   escríbelo"). Si la fecha no se pudo leer o era futura, se pone la de hoy.
 7. Elige la **Categoría** y el **Método de pago** y toca **Guardar**. Nada se
    guarda hasta que tú lo confirmas.
 
-<img src="img/manual/07_revision_ocr.png" alt="Pantalla Revisar recibo con los datos leídos" width="260">
+<img src="img/manual/08_revision_ocr.png" alt="Pantalla Revisar recibo con los datos leídos" width="260">
 
-Si no hay internet o la lectura tarda más de 45 segundos, la app te avisa y
-abre el formulario con la foto adjunta para que lo llenes a mano. La foto no se
-pierde.
+Si no hay internet, el servicio no responde o la lectura pasa de 45
+segundos, aparece **No se pudo leer el recibo** con dos opciones:
+**Reintentar** o **Registrar manualmente**. Si eliges registrar a mano, se
+abre el formulario con la foto ya adjunta: la foto no se pierde. Si la foto no
+se entiende, la app te ofrece **Repetir foto**.
+
+**Tu privacidad:** solo se envía la foto del recibo, cifrada, a Google
+(Gemini). Nunca se envían tus montos, notas ni otros movimientos. SPENDY usa
+el plan gratuito de Google, en el que Google puede usar lo enviado para
+mejorar sus productos. Si un recibo trae datos que no quieres compartir (tu
+RFC o tu domicilio, por ejemplo), regístralo a mano.
 
 Las fotos de tus recibos se guardan dentro de la app y **no aparecen en tu
 galería**.
 
-## 6. Buscar y filtrar movimientos
+## 7. Buscar y filtrar movimientos
 
-En la pantalla principal, debajo del balance:
+En **Movimientos** (y en Movimientos recientes de Inicio), arriba de la lista:
 
 | Para | Haz esto |
 |---|---|
-| Buscar por texto | Escribe en **Buscar en descripción o nota**. No importan acentos ni mayúsculas: "cafe" encuentra "Café". |
+| Buscar por texto | Escribe en **Buscar en descripción o nota**. No importan acentos ni mayúsculas: "super" encuentra "Súper". |
 | Ver un periodo | Toca **Desde** y **Hasta** y elige las fechas. |
 | Ver solo gastos o ingresos | Toca **Egreso** o **Ingreso** (o **Todos**). |
 | Ver una categoría | Elige una en **Categoría**. |
 
-Puedes combinar varios filtros. Arriba de la lista verás cuántos movimientos
+Puedes combinar varios filtros. Arriba de la lista verás cuántos resultados
 hay y cuánto suman. Toca **Limpiar filtros** para volver a ver todo. Si nada
 coincide, aparece "Sin resultados".
 
-<img src="img/manual/08_busqueda_filtros.png" alt="Búsqueda con un resultado y su suma" width="260">
+<img src="img/manual/09_busqueda_filtros.png" alt="Búsqueda con dos resultados y su suma" width="260">
 
-## 7. Ver el resumen del año y exportarlo
+## 8. Resumen del año y exportarlo
 
-1. Toca el ícono de **Resumen anual** (arriba a la derecha).
+1. Toca **Resumen** en la barra de abajo.
 2. Aparece el año actual. Para ver otro, elígelo en **Año** (solo salen años
    con movimientos).
 3. Verás los **Ingresos del año**, los **Egresos del año**, la **Diferencia**
-   y los **Gastos por categoría**.
-4. Para guardarlo o enviarlo, toca **Exportar CSV** (se abre en Excel o Google
-   Sheets) o **Exportar PDF**. Se abre el menú de compartir de tu teléfono:
-   elige WhatsApp, correo, Drive o "Guardar en archivos".
+   y la gráfica de **Gastos por categoría** con el total de cada una.
+4. Para guardarlo o enviarlo, baja y toca **Exportar CSV** (se abre en Excel
+   o Google Sheets) o **Exportar PDF**. Se abre el menú de compartir de tu
+   teléfono: elige WhatsApp, correo, Drive o "Guardar en archivos".
 
 El archivo se llama `spendy_resumen_2026.csv` o `.pdf` (con el año que
 elegiste).
 
-<img src="img/manual/09_resumen_anual.png" alt="Resumen anual con botones de exportar" width="260">
+<img src="img/manual/10_resumen_anual.png" alt="Resumen anual con la gráfica de gastos por categoría" width="260">
 
-## 8. Proteger la app con un PIN
+## 9. Presupuestos por categoría
 
-> **Esta función llega en la versión 0.7.0**, después de la entrega del
-> 23/11/2026. Esta sección se completará con sus capturas cuando esté lista.
+Un presupuesto es el máximo que quieres gastar **al mes** en una categoría.
 
-Lo que podrás hacer:
+1. En Inicio, en la tarjeta **Presupuestos**, toca **Crear** (o **Editar**).
+   También está en **Ajustes › Presupuestos mensuales**.
+2. Escribe el límite de cada categoría que quieras controlar, con punto para
+   los centavos. Deja vacío lo que no quieras controlar.
+3. Toca **Guardar**.
 
-- En **Configuración**, activar un PIN de 6 números (lo escribes dos veces para
-  confirmarlo), cambiarlo o desactivarlo.
-- Desbloquear con tu huella o tu cara si tu teléfono lo permite.
-- La app pedirá el PIN al abrirla y al volver a ella después de más de un
-  minuto, y ocultará su contenido en la lista de apps recientes.
-- Si te equivocas 5 veces seguidas, tendrás que esperar 30 segundos.
-- Si olvidas el PIN, **Olvidé mi PIN / Restablecer app** borra todos tus datos
-  del teléfono (después de confirmarlo dos veces) para que empieces de nuevo.
+En Inicio verás una barra por categoría con lo gastado contra el límite y
+cuánto te queda: verde mientras vas bien, amarilla desde el 80 % y roja
+cuando te pasas ("Te pasaste por $…"). Los presupuestos se reinician cada
+mes; los límites se quedan hasta que los cambies.
 
-_[Completar con v0.7.0: pasos y capturas de Configuración, activar PIN,
-desbloqueo y restablecer.]_
+<img src="img/manual/12_presupuestos.png" alt="Pantalla Presupuestos" width="260"> <img src="img/manual/03_inicio_presupuestos.png" alt="Barras de presupuesto en Inicio" width="260">
 
-## 9. Si algo sale mal
+## 10. "Tu mes": cómo vas contra el mes pasado
+
+La tarjeta **Tu mes** de Inicio te dice, en tres líneas:
+
+- Si gastas más o menos que **a estas alturas** del mes pasado (compara del
+  día 1 al día de hoy de cada mes, para que sea justo).
+- **Donde más gastas** este mes y cuánto.
+- **A este ritmo**: tu gasto promedio por día y cuánto gastarías al cierre del
+  mes si sigues igual.
+
+No tienes que hacer nada: se calcula sola con tus movimientos.
+
+## 11. Proteger la app con PIN y huella
+
+**Activar el PIN**
+
+1. Ve a **Ajustes** y, en **Seguridad**, enciende **PIN de acceso**.
+2. Escribe un PIN de 6 números. Al escribir el sexto número pasa solo al
+   siguiente paso.
+3. Escríbelo otra vez para confirmarlo. Si no coinciden, la app te lo vuelve
+   a pedir.
+
+Desde ese momento SPENDY pide el PIN **al abrirla** y **al volver a ella
+después de más de 1 minuto** en otra app. Además, en la lista de apps
+recientes su contenido se ve en blanco y no se pueden tomar capturas de
+pantalla dentro de la app.
+
+<img src="img/manual/11_ajustes.png" alt="Ajustes" width="260"> <img src="img/manual/13_activar_pin.png" alt="Activar PIN" width="260">
+
+**Huella o rostro**
+
+1. Con el PIN ya activo, enciende **Desbloquear con huella o rostro**.
+2. El teléfono te pide confirmar tu huella o rostro.
+
+Al abrir la app toca **Usar huella o rostro**. El PIN sigue funcionando como
+respaldo. Si alguien agrega o cambia huellas en el teléfono, SPENDY te pide
+el PIN y desactiva la huella; puedes volver a activarla después.
+
+<img src="img/manual/16_bloqueo_pin.png" alt="Pantalla Ingresa tu PIN" width="260">
+
+**Cambiar o quitar el PIN**
+
+- **Cambiar PIN**: escribe el PIN actual y luego el nuevo dos veces.
+- Para quitarlo, apaga **PIN de acceso** y escribe tu PIN actual.
+
+<img src="img/manual/14_ajustes_pin_activo.png" alt="Ajustes con el PIN activo" width="260">
+
+**Si te equivocas de PIN**
+
+Después de 5 intentos fallidos seguidos tienes que esperar 30 segundos. Si
+sigues fallando, la espera crece: 1 minuto, 5 minutos, 15 minutos y luego 1
+hora. La pantalla te muestra cuánto falta.
+
+**Si olvidaste el PIN**
+
+En la pantalla del PIN toca **Olvidé mi PIN / Restablecer app**. La app te
+pide confirmar dos veces (**Continuar** y luego **Borrar todo**) y **borra
+todos tus movimientos, recibos y ajustes** del teléfono para que empieces de
+nuevo. Si tienes una copia de seguridad, después puedes restaurarla
+(sección 12).
+
+## 12. Copia de seguridad
+
+SPENDY no sube tus datos a ninguna nube y no se incluye en el respaldo
+automático de Android. Si cambias de teléfono, o lo pierdes, solo te salva
+una copia que tú hayas hecho.
+
+**Crear una copia**
+
+1. Ve a **Ajustes › Crear copia de seguridad**.
+2. Escribe una contraseña de al menos 8 caracteres y repítela. Toca
+   **Continuar**.
+3. Elige dónde guardar el archivo (Google Drive, correo, WhatsApp o "Guardar
+   en archivos").
+
+La copia es un archivo `.spendy` con tus movimientos, fotos de recibos y
+presupuestos, cifrado con tu contraseña.
+
+<img src="img/manual/15_crear_copia.png" alt="Crear copia de seguridad" width="260">
+
+**Restaurar una copia**
+
+1. En el teléfono nuevo ve a **Ajustes › Restaurar copia de seguridad**.
+2. La app te avisa que **todo lo que haya en ese teléfono se reemplaza** por
+   lo de la copia. Toca **Elegir archivo** y elige el archivo `.spendy`.
+3. Escribe la contraseña de la copia.
+
+Al terminar verás cuántos movimientos, recibos y presupuestos se
+restauraron. Si la contraseña no es correcta, el archivo no es de SPENDY o
+está dañado, la app te lo dice y tus datos actuales no cambian.
+
+> Si olvidas la contraseña de la copia, no hay forma de abrirla. Guárdala en
+> un lugar seguro.
+
+## 13. Si algo sale mal
 
 | Mensaje o problema | Qué hacer |
 |---|---|
 | "No se pudo guardar porque el teléfono no tiene espacio libre." | Borra fotos o apps que no uses y toca **Reintentar**. Lo que escribiste sigue ahí. |
 | "No se pudo guardar el movimiento…" | Toca **Reintentar**. Si se repite, cierra y abre la app. |
-| "No se pudieron cargar tus datos." | Cierra y vuelve a abrir la app; si sigue, reinicia el teléfono. |
+| "No se pudo cargar la lista" o "No se pudieron cargar tus datos." | Toca **Reintentar**; si sigue, cierra y vuelve a abrir la app o reinicia el teléfono. |
 | La cámara no abre o dice que está ocupada | Cierra otras apps que usen la cámara y toca **Reintentar**, o registra a mano. |
-| Negaste el permiso de cámara | Ve a Ajustes del teléfono › Apps › SPENDY › Permisos › Cámara › Permitir. |
-| La lectura del recibo no está disponible o no hay internet | Registra a mano; la foto queda adjunta. Todo lo demás funciona sin internet. |
+| Negaste el permiso de cámara | Toca **Abrir Ajustes** en la app, o ve a Ajustes del teléfono › Apps › SPENDY › Permisos › Cámara › Permitir. |
+| "No hay conexión a internet para leer el recibo." | Revisa tu conexión y toca **Reintentar**, o **Registrar manualmente**; la foto se conserva. Todo lo demás funciona sin internet. |
+| "La lectura del recibo tardó demasiado." | Pasaron 45 segundos sin respuesta. Toca **Reintentar** o registra a mano; la foto se conserva. |
+| "No se pudo leer el recibo. Toma la foto de nuevo…" | Toca **Repetir foto** con buena luz y el recibo completo, o registra a mano con esa foto. |
 | La lectura del recibo trajo un dato mal | Corrígelo en **Revisar recibo** antes de **Guardar**. |
+| "Los dos PIN no coinciden." | Escribe el PIN nuevo otra vez, igual las dos veces. |
+| "No te reconocimos. Ingresa tu PIN." | Escribe tu PIN de 6 números. |
+| "La contraseña no es correcta." (copia) | Escríbela de nuevo; distingue mayúsculas y minúsculas. |
+| "Esta copia se hizo con una versión más nueva de SPENDY." | Actualiza la app y vuelve a intentar. |
 
-**Importante:** SPENDY no hace respaldos en la nube. Si desinstalas la app o
-cambias de teléfono, tus datos se borran. Exporta tu resumen cuando lo
-necesites.
-
-## 10. Presupuestos por categoría
-
-1. En **Inicio**, en la tarjeta **Presupuestos**, toca **Crear** (o **Editar**).
-   También está en **Ajustes → Presupuestos mensuales**.
-2. Escribe cuánto quieres gastar como máximo al mes en cada categoría. Deja
-   vacío lo que no quieras controlar.
-3. Toca **Guardar**.
-
-En Inicio verás una barra por categoría: verde mientras vas bien, amarilla
-desde el 80 % y roja cuando te pasas. Al guardar un gasto que te acerca o te
-pasa del límite, la app te avisa con un mensaje.
-
-## 11. "Tu mes": cómo vas contra el mes pasado
-
-La tarjeta **Tu mes** de Inicio te dice:
-
-- Si gastas más o menos que **a estas alturas** del mes pasado (compara del
-  día 1 al día de hoy, para que sea justo).
-- En qué categoría gastas más.
-- Cuánto gastarías al cierre del mes si sigues al mismo ritmo.
-
-## 12. Leer recibos con Gemini
-
-Sin hacer nada, la app lee los recibos dentro del teléfono. Para que los lea
-mejor con Gemini de Google:
-
-1. Entra a <https://aistudio.google.com> con tu cuenta de Google y toca
-   **Get API key**. Copia la clave.
-2. En SPENDY ve a **Ajustes → Leer recibos con Gemini**, pega la clave y toca
-   **Guardar**.
-
-La clave se guarda cifrada solo en tu teléfono. Puedes quitarla en el mismo
-lugar con **Quitar clave**.
-
-## 13. Copia de seguridad
-
-**Crear una copia:** ve a **Ajustes → Crear copia de seguridad**, escribe una
-contraseña de al menos 8 caracteres (dos veces) y elige dónde guardar el
-archivo (por ejemplo, Google Drive o enviártelo por correo). La copia incluye
-tus movimientos, fotos de recibos y presupuestos, cifrados con tu contraseña.
-
-**Restaurar:** en el teléfono nuevo ve a **Ajustes → Restaurar copia de
-seguridad**, elige el archivo `.spendy` y escribe la contraseña. **Todo lo que
-haya en ese teléfono se reemplaza** por lo de la copia.
-
-> Si olvidas la contraseña de la copia, no hay forma de abrirla. Guárdala en un
-> lugar seguro.
+**Importante:** si desinstalas la app, se borran todos tus datos del
+teléfono. Haz una copia de seguridad (sección 12) antes de cambiar de
+teléfono o desinstalar.
