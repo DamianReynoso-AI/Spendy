@@ -1,9 +1,18 @@
-// Genera las capturas de pantalla del manual de usuario (RNF-49) en
+// Genera las capturas de pantalla del manual de usuario (RNF-49, v1.1) en
 // docs/img/manual/. No es una prueba de aceptación: arma la app con datos
 // de ejemplo y servicios simulados (cámara y OCR) y guarda una imagen PNG
 // de cada paso, con la fuente Roboto real de Flutter.
 //
-// Uso:  flutter test tool/capturas/capturas_test.dart
+// Uso:  flutter test --dart-define=SPENDY_GEMINI_API_KEY=x \
+//         tool/capturas/capturas_test.dart
+// (la definición solo hace que el aviso de privacidad salga como en el APK
+// con Gemini; la clave no se usa)
+//
+// Ojo: en flutter test, un TextStyle sin familia usa la fuente de pruebas
+// (cuadros negros) y no se puede reemplazar. Los títulos de la barra
+// superior (titleTextStyle en lib/ui/theme/spendy_theme.dart) no traen
+// familia; para las capturas de v1.1 se agregó ahí fontFamily 'Roboto' solo
+// mientras corría este script (en el teléfono ya se ve con Roboto).
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -24,6 +33,16 @@ import 'package:spendy/modules/privacy/onboarding_service.dart';
 import 'package:spendy/modules/receipts/camera_service.dart';
 import 'package:spendy/modules/search/movement_filter.dart';
 import 'package:spendy/modules/summary/summary_service.dart';
+import 'package:spendy/data/models/movement.dart';
+import 'package:spendy/data/secure_store.dart';
+import 'package:spendy/data/image_store.dart';
+import 'package:spendy/modules/backup/backup_service.dart';
+import 'package:spendy/modules/budgets/budget_service.dart';
+import 'package:spendy/modules/insights/insights_service.dart';
+import 'package:spendy/modules/security/biometric_service.dart';
+import 'package:spendy/modules/security/lock_controller.dart';
+import 'package:spendy/modules/security/pin_service.dart';
+import 'package:sqflite/sqflite.dart' show Database;
 
 import '../../test/widget/movement_screens_test.dart'
     show MemoryCategoryRepository, MemoryMovementRepository;
@@ -31,6 +50,9 @@ import '../../test/widget/receipt_screens_test.dart'
     show FakeDevice, FakeReceipts;
 import '../../test/widget/summary_screens_test.dart'
     show FakeExports, MemorySettings;
+import '../../test/widget/budget_screens_test.dart' show MemoryBudgetRepository;
+import '../../test/widget/security_screens_test.dart' show FakeReset;
+import '../../test/unit/pin_service_test.dart' show FakeBiometrics, fastHasher;
 
 const String receiptText = 'FARMACIA SAN JUAN\nFECHA 14/11/2026\n'
     'SUBTOTAL 245.69\nTOTAL \$285.00\nEFECTIVO 300.00';
@@ -85,6 +107,13 @@ class _PhotoReceipts extends FakeReceipts {
           TempReceipt(path: photo, sizeBytes: 10, capturedAt: DateTime(2026)));
 }
 
+/// La copia de seguridad solo se abre hasta el diálogo de contraseña; no
+/// toca la base.
+class _NoDb implements Database {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 void main() {
   autoUpdateGoldenFiles = true;
   WidgetsApp.debugAllowBannerOverride = false;
@@ -93,6 +122,7 @@ void main() {
 
   testWidgets('capturas del manual de usuario', (tester) async {
     await tester.runAsync(_loadFonts);
+    debugDisableShadows = false; // sombras reales, no bordes negros
     FocusManager.instance.highlightStrategy =
         FocusHighlightStrategy.alwaysTouch;
     tester.view.physicalSize = const Size(393 * 2, 852 * 2);
@@ -106,6 +136,62 @@ void main() {
     final catalog = CategoryCatalog(MemoryCategoryRepository(), logger);
     final service =
         MovementService(repository: repo, catalog: catalog, logger: logger);
+    final budgetRows = MemoryBudgetRepository()
+      ..limits[1] = 300000
+      ..limits[2] = 80000
+      ..limits[5] = 100000;
+    final budgets = BudgetService(
+      budgets: budgetRows,
+      movements: repo,
+      catalog: catalog,
+      logger: logger,
+    );
+
+    // Datos de ejemplo: el mes pasado y lo que va de este mes.
+    final last = DateTime(today.year, today.month - 1);
+    Future<void> add(MovementType type, int pesos, DateTime date, int category,
+        {String? method = 'debito', String? text}) async {
+      await repo.insert(Movement(
+        type: type,
+        amountCents: pesos * 100,
+        date: date,
+        categoryId: category,
+        paymentMethod: type == MovementType.egreso ? method : null,
+        description: text,
+        createdAt: date,
+        updatedAt: date,
+      ));
+    }
+
+    final day = today.day;
+    DateTime thisMonth(int d) =>
+        DateTime(today.year, today.month, d.clamp(1, day));
+    await tester.runAsync(() async {
+      await add(
+          MovementType.ingreso, 15000, DateTime(last.year, last.month, 1), 7,
+          text: 'Quincena');
+      await add(
+          MovementType.egreso, 4500, DateTime(last.year, last.month, 2), 3,
+          method: 'transferencia', text: 'Renta');
+      await add(
+          MovementType.egreso, 2100, DateTime(last.year, last.month, 3), 1,
+          text: 'Súper');
+      await add(MovementType.egreso, 650, DateTime(last.year, last.month, 8), 2,
+          text: 'Gasolina');
+      await add(
+          MovementType.egreso, 900, DateTime(last.year, last.month, 12), 5,
+          text: 'Cine');
+      await add(MovementType.ingreso, 15000, thisMonth(1), 7, text: 'Quincena');
+      await add(MovementType.egreso, 4500, thisMonth(2), 3,
+          method: 'transferencia', text: 'Renta');
+      await add(MovementType.egreso, 1850, thisMonth(5), 1, text: 'Súper');
+      await add(MovementType.egreso, 720, thisMonth(9), 2, text: 'Gasolina');
+      await add(MovementType.egreso, 640, thisMonth(12), 4, text: 'Internet');
+      await add(MovementType.egreso, 380, thisMonth(15), 5, text: 'Cine');
+      await add(MovementType.egreso, 610, thisMonth(17), 1,
+          method: 'efectivo', text: 'Mercado');
+    });
+
     final photo = await tester.runAsync(() async => _sampleReceipt());
     final receipts = _PhotoReceipts(photo!)
       ..ocr = OcrService(
@@ -113,6 +199,22 @@ void main() {
         logger: logger,
         parser: ReceiptParser(clock: () => today),
       );
+
+    final settings = MemorySettings();
+    final backend = MemorySecureBackend();
+    LockController newLock() {
+      final store = SecureStore(backend);
+      return LockController(
+        pin: PinService(store: store, logger: logger, hasher: fastHasher()),
+        biometrics: BiometricService(
+          store: store,
+          logger: logger,
+          authenticator: FakeBiometrics(),
+        ),
+        reset: FakeReset(backend, settings),
+        shield: const NoScreenShield(),
+      );
+    }
 
     var shot = 0;
     Future<void> capture(String name) async {
@@ -128,14 +230,14 @@ void main() {
     }
 
     Future<void> tapText(String text) async {
-      final target = find.text(text).last;
       if (find.text(text).evaluate().isEmpty) {
         await tester.dragUntilVisible(
           find.text(text),
-          find.byType(ListView).last,
+          find.byType(Scrollable).last,
           const Offset(0, -300),
         );
       }
+      final target = find.text(text).last;
       await tester.ensureVisible(target);
       await tester.pumpAndSettle();
       await tester.tap(target);
@@ -149,64 +251,125 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    await tester.pumpWidget(SpendyApp(
-      service: service,
-      catalog: catalog,
-      receipts: receipts,
-      camera: CameraService(FakeDevice(), logger),
-      onboarding: OnboardingService(MemorySettings(), logger),
-      summary: SummaryService(repository: repo, logger: logger),
-      exports: FakeExports(),
-      filter: MovementFilter(repository: repo, logger: logger),
-    ));
+    /// Deja que se decodifiquen las fotos (Image.file) antes de capturar.
+    Future<void> decodeImages() async {
+      for (var i = 0; i < 8; i++) {
+        await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 300)));
+        await tester.pump();
+      }
+    }
+
+    Future<void> tab(String label) async {
+      await tester.tap(find.text(label).last);
+      await tester.pumpAndSettle();
+    }
+
+    Widget app(LockController lock) => SpendyApp(
+          service: service,
+          catalog: catalog,
+          receipts: receipts,
+          camera: CameraService(FakeDevice(), logger),
+          onboarding: OnboardingService(settings, logger),
+          summary: SummaryService(repository: repo, logger: logger),
+          exports: FakeExports(),
+          filter: MovementFilter(repository: repo, logger: logger),
+          lock: lock,
+          budgets: budgets,
+          insights: InsightsService(repository: repo, logger: logger),
+          backup: BackupService(
+            db: _NoDb(),
+            images: ImageStore(Directory.systemTemp),
+            directory: () async => Directory.systemTemp,
+            logger: logger,
+          ),
+        );
+
+    final lock = newLock();
+    await tester.runAsync(lock.init);
+    await tester.pumpWidget(app(lock));
     await capture('aviso_privacidad');
     await tapText(PrivacyTexts.acceptButton);
-    await capture('inicio_vacio');
+    await capture('inicio');
+    await tester.dragUntilVisible(find.byKey(const Key('budgets_card')),
+        find.byType(Scrollable).first, const Offset(0, -300));
+    await capture('inicio_presupuestos');
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, 3000));
+    await tester.pumpAndSettle();
 
-    // Registrar un ingreso y un egreso.
-    await tapText('Registrar mi primer movimiento');
-    await tapText('Ingreso');
-    await tester.enterText(find.byType(TextField).first, '15000');
-    await choose(DropdownButton<int>, 'Sueldos y salarios');
-    await tapText('Guardar');
-    await tapText('Registrar');
+    // Registrar un egreso desde los accesos rápidos.
+    await tester.tap(find.text('Egreso').first);
+    await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).first, '350');
     await choose(DropdownButton<int>, 'Alimentos');
     await choose(DropdownButton<PaymentMethod>, 'Efectivo');
     await tester.enterText(find.byType(TextField).at(1), 'Tacos El Güero');
     await capture('formulario_egreso');
     await tapText('Guardar');
-    await capture('inicio_con_balance');
 
-    // Detalle, edición y eliminación.
+    // Movimientos: lista, detalle y eliminar.
+    await tab('Movimientos');
+    await capture('movimientos');
     await tapText('Tacos El Güero');
     await capture('detalle');
     await tapText('Eliminar');
     await capture('confirmar_eliminar');
     await tapText('Cancelar');
-    tester.state<NavigatorState>(find.byType(Navigator)).pop();
+    tester.state<NavigatorState>(find.byType(Navigator).last).pop();
     await tester.pumpAndSettle();
 
     // Escanear un recibo.
-    await tester.tap(find.byTooltip('Escanear recibo'));
+    await tester.tap(find.bySemanticsLabel('Escanear recibo').last);
     await tester.pumpAndSettle();
     await tapText('Tomar foto');
     await tapText('Usar foto');
+    await decodeImages();
     await capture('revision_ocr');
     await choose(DropdownButton<int>, 'Servicios');
     await choose(DropdownButton<PaymentMethod>, 'Efectivo');
     await tapText('Guardar');
 
     // Búsqueda y filtros.
+    await tab('Movimientos');
     await tester.enterText(
       find.widgetWithText(TextField, 'Buscar en descripción o nota'),
-      'farmacia',
+      'super',
     );
     await capture('busqueda_filtros');
     await tapText('Limpiar filtros');
 
-    // Resumen anual y exportación.
-    await tester.tap(find.byTooltip('Resumen anual'));
+    // Resumen anual.
+    await tab('Resumen');
     await capture('resumen_anual');
+
+    // Ajustes, presupuestos, PIN y copia de seguridad.
+    await tab('Ajustes');
+    await capture('ajustes');
+    await tapText('Presupuestos mensuales');
+    await capture('presupuestos');
+    tester.state<NavigatorState>(find.byType(Navigator).last).pop();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('pin_switch')));
+    await tester.pumpAndSettle();
+    await capture('activar_pin');
+    // Al escribir el sexto número el PIN se envía solo.
+    await tester.enterText(find.byKey(const Key('pin_field')), '482915');
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('pin_field')), '482915');
+    await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 300)));
+    await tester.pumpAndSettle();
+    await capture('ajustes_pin_activo');
+    await tapText('Crear copia de seguridad');
+    await capture('crear_copia');
+    await tapText('Cancelar');
+
+    // Pantalla de bloqueo al volver a abrir la app.
+    final locked = newLock();
+    await tester.runAsync(locked.init);
+    await tester.pumpWidget(Container());
+    await tester.pumpWidget(app(locked));
+    await capture('bloqueo_pin');
+    debugDisableShadows = true;
   });
 }
