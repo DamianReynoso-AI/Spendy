@@ -1,4 +1,4 @@
-/// M-05 · Orquestador de la lectura OCR: tiempo límite de 10 s,
+/// M-05 · Orquestador de la lectura OCR: tiempo límite de [AppConfig.ocrTimeout],
 /// cancelación inmediata y un solo resultado por petición (RF-23, RF-29 a
 /// RF-31; RNF-13; CA-064, CA-074, CA-077 a CA-082, CA-145).
 library;
@@ -125,7 +125,7 @@ class OcrService {
   final Duration _timeout;
 
   /// Envía solo [image] (la foto comprimida, RNF-17) y empieza a contar
-  /// los 10 s (RF-30).
+  /// el tiempo límite (RF-30).
   OcrRequest start(Uint8List image) {
     final request = OcrRequest._();
     final watch = Stopwatch()..start();

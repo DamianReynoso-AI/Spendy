@@ -15,7 +15,7 @@ enum OcrFailureKind {
   /// El servicio respondió con error o con una respuesta que no se entiende.
   server,
 
-  /// Pasaron los 10 segundos de [AppConfig.ocrTimeout] (RF-30).
+  /// Pasó el tiempo de [AppConfig.ocrTimeout] (RF-30).
   timeout,
 
   /// Esta versión no tiene configurado el servicio (sin endpoint o clave).

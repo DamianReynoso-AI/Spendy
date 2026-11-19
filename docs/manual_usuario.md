@@ -133,7 +133,7 @@ app los lee de la foto.
 
 <img src="img/manual/07_revision_ocr.png" alt="Pantalla Revisar recibo con los datos leídos" width="260">
 
-Si no hay internet o la lectura tarda más de 10 segundos, la app te avisa y
+Si no hay internet o la lectura tarda más de 45 segundos, la app te avisa y
 abre el formulario con la foto adjunta para que lo llenes a mano. La foto no se
 pierde.
 
