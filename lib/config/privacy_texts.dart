@@ -39,6 +39,24 @@ class PrivacyTexts {
       'ningún servidor. Nunca se envían tus montos, notas ni ningún otro '
       'dato tuyo.';
 
+  /// `true` si el APK se compiló con la clave de Gemini del equipo
+  /// (`--dart-define=SPENDY_GEMINI_API_KEY=...`). Entonces todos los
+  /// recibos se leen con Gemini y el aviso lo dice así.
+  static const bool geminiBuiltIn =
+      String.fromEnvironment('SPENDY_GEMINI_API_KEY').length > 0;
+
+  /// Párrafo de Gemini cuando viene incluido en la app (RNF-17).
+  static const String geminiBuiltInParagraph =
+      'Lectura de recibos con Gemini. Cuando escaneas un recibo, la foto '
+      'completa de ese recibo se envía cifrada (HTTPS) a Google (Gemini), '
+      'cuyos servidores pueden estar fuera de México, para leer el comercio, '
+      'la fecha y el total. Nunca se envían tus montos, notas ni ningún otro '
+      'dato tuyo. SPENDY usa el plan gratuito de Google AI Studio, en el que '
+      'Google puede usar lo que se envía para mejorar sus productos y '
+      'personas revisoras pueden verlo. No escanees recibos con datos que no '
+      'quieras compartir (por ejemplo tu RFC o domicilio); en ese caso '
+      'registra el movimiento a mano.';
+
   /// Párrafo de Gemini, que la persona activa por su cuenta en Ajustes
   /// con su propia clave (RNF-17, TEC-01; AUD-06).
   static const String geminiOptInParagraph =
@@ -59,7 +77,7 @@ class PrivacyTexts {
 
   /// Versión del aviso. Si cambia, la app lo vuelve a mostrar para que la
   /// persona lo acepte (AUD-07).
-  static const String version = '2';
+  static const String version = geminiBuiltIn ? '3' : '2';
 
   static const String title = 'Aviso de privacidad';
 
@@ -84,10 +102,14 @@ class PrivacyTexts {
         'teléfono. SPENDY no tiene servidores, no los sube a ninguno y no '
         'los incluye en el respaldo automático de Android. Las fotos de tus '
         'recibos no aparecen en la galería.',
-    ocrUsesCloud ? cloudOcrParagraph : onDeviceOcrParagraph,
-    'Google ML Kit puede enviar a Google datos técnicos de uso (no tus '
-        'fotos ni tus movimientos) para mejorar ese servicio.',
-    geminiOptInParagraph,
+    if (geminiBuiltIn)
+      geminiBuiltInParagraph
+    else ...[
+      ocrUsesCloud ? cloudOcrParagraph : onDeviceOcrParagraph,
+      'Google ML Kit puede enviar a Google datos técnicos de uso (no tus '
+          'fotos ni tus movimientos) para mejorar ese servicio.',
+      geminiOptInParagraph,
+    ],
     'Si no quieres usar la lectura de recibos, puedes registrar tus '
         'movimientos a mano.',
     'Los resúmenes que exportes en CSV o PDF y las copias de seguridad '
@@ -97,9 +119,9 @@ class PrivacyTexts {
     'Tus derechos (acceso, rectificación, cancelación y oposición): como los '
         'datos están solo en tu teléfono, los ejerces directamente en la app: '
         'consúltalos y corrígelos en Movimientos, bórralos uno por uno o todos '
-        'con Restablecer la app, y deja de enviar fotos a Google quitando tu '
-        'clave de Gemini. Para cualquier duda, usa el contacto del '
-        'responsable.',
+        'con Restablecer la app, y deja de enviar fotos a Google '
+        '${geminiBuiltIn ? 'registrando tus movimientos a mano' : 'quitando tu clave de Gemini'}. '
+        'Para cualquier duda, usa el contacto del responsable.',
     'Si desinstalas la app, se borran todos tus datos de este teléfono; solo '
         'quedan las copias de seguridad que tú hayas guardado.',
     'Si este aviso cambia, la app te lo mostrará de nuevo antes de seguir. '

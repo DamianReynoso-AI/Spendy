@@ -89,4 +89,14 @@ void main() {
     expect(text, contains('solo la imagen de ese recibo se envía'));
     expect(text, contains(PrivacyTexts.ocrProviderName));
   });
+
+  test('RNF-17: con Gemini incluido, el aviso dice que la foto va a Google',
+      () {
+    const text = PrivacyTexts.geminiBuiltInParagraph;
+    expect(text, contains('Google (Gemini)'));
+    expect(text, contains('fuera de México'));
+    expect(text, contains('mejorar sus productos'));
+    expect(text, contains('Nunca se envían tus montos, notas'));
+    expect(text, contains('registra el movimiento a mano'));
+  });
 }

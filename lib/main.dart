@@ -78,20 +78,12 @@ Future<LockController> _lockController(
 }
 
 /// Proveedor de OCR (RNF-32), en este orden:
-/// 1. Gemini con la clave que la persona guardó en Ajustes (se revisa en
-///    cada lectura, así que aplica sin reiniciar).
-/// 2. Gemini con `SPENDY_GEMINI_API_KEY` del entorno (solo desarrollo en
-///    escritorio; la clave nunca se compila dentro del APK, TEC-01).
-/// 3. El servicio HTTPS genérico si hay endpoint (RNF-18).
-/// 4. ML Kit en el teléfono (sección 5.2 de docs/arquitectura.md).
-OcrAdapter _ocrAdapter(ImageStore store, OcrKeyService keys) =>
-    KeyedGeminiOcrAdapter(
-      readKey: keys.read,
-      fallback: _fallbackOcrAdapter(store),
-      model: GeminiEnvironment.compiledModel,
-    );
-
-OcrAdapter _fallbackOcrAdapter(ImageStore store) {
+/// 1. Gemini con la clave del equipo, inyectada al compilar con
+///    `--dart-define=SPENDY_GEMINI_API_KEY=...` (o la variable de entorno
+///    del mismo nombre en escritorio). La persona no captura ninguna clave.
+/// 2. El servicio HTTPS genérico si hay endpoint (RNF-18).
+/// 3. ML Kit en el teléfono (sección 5.2 de docs/arquitectura.md).
+OcrAdapter _ocrAdapter(ImageStore store) {
   final gemini = GeminiOcrConfig.fromEnvironment();
   if (gemini != null) return GeminiOcrAdapter(gemini);
   try {
@@ -135,12 +127,13 @@ Future<void> main() async {
     final store = ImageStore(await getApplicationSupportDirectory());
     await store.init();
     final lock = await _lockController(db, store, logger);
-    final ocrKey = OcrKeyService(SecureStore(), logger);
+    // Ya no se pide clave en Ajustes: se borra la que hubiera de antes.
+    await OcrKeyService(SecureStore(), logger).remove();
     final receipts = ReceiptService(
       store: store,
       repository: ReceiptRepository(db, store),
       logger: logger,
-      ocr: OcrService(adapter: _ocrAdapter(store, ocrKey), logger: logger),
+      ocr: OcrService(adapter: _ocrAdapter(store), logger: logger),
     );
     // Limpia capturas temporales y recibos sin registro (TEC-06, RNF-21).
     await receipts.cleanOrphans();
@@ -160,7 +153,6 @@ Future<void> main() async {
         exports:
             ExportService(directory: getTemporaryDirectory, logger: logger),
         lock: lock,
-        ocrKey: ocrKey,
         budgets: _budgetService(db, movements, catalog, logger),
         insights: InsightsService(repository: movements, logger: logger),
         backup: _backupService(db, store, logger),

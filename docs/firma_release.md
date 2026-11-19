@@ -37,8 +37,16 @@ keytool -genkeypair -v -keystore spendy-release.jks -alias spendy \
 ## Compilar
 
 ```bash
-flutter build apk --release --split-per-abi
+flutter build apk --release --dart-define=SPENDY_GEMINI_API_KEY=<clave>
 ```
+
+Sin `--target-platform`: así el APK trae arm64, armeabi-v7a y x86_64 y abre
+en cualquier teléfono y en emuladores como appetize.io.
+
+La clave de Gemini es la del equipo (Google AI Studio) y nunca se sube al
+repositorio. Va dentro del APK, así que quien lo tenga puede extraerla: en
+AI Studio ponle restricción de app Android (`mx.zenorbak.spendy` + huella
+SHA-1 de la llave de firma) o un límite de cuota. Si la rotas, recompila.
 
 Para una prueba interna sin la llave (no se puede instalar encima de una
 versión firmada):
